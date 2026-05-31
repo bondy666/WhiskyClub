@@ -103,6 +103,26 @@ app.get("/api/sessions/:id/tasting-entries", async (req, res) => {
   }
 });
 
+app.get("/api/debug/sessions", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT
+        DB_NAME() AS DatabaseName,
+        COUNT(*) AS SessionCount
+      FROM TastingSessions
+    `);
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Debug failed",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
@@ -123,6 +143,7 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/sessions", async (_req, res) => {
   try {
     const pool = await poolPromise;
+
     const result = await pool.request().query(`
       SELECT Id, Name, SessionDate, Theme, Status, CreatedAt
       FROM TastingSessions
@@ -130,9 +151,12 @@ app.get("/api/sessions", async (_req, res) => {
     `);
 
     res.json(result.recordset);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to retrieve sessions" });
+  } catch (error: any) {
+    console.error("Failed to retrieve sessions", error);
+    res.status(500).json({
+      error: "Failed to retrieve sessions",
+      details: error.message
+    });
   }
 });
 
@@ -145,8 +169,6 @@ app.post("/api/sessions", async (req, res) => {
         error: "name and sessionDate are required"
       });
     }
-
-  
 
     const pool = await poolPromise;
 
@@ -162,9 +184,12 @@ app.post("/api/sessions", async (req, res) => {
       `);
 
     res.status(201).json(result.recordset[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to create session" });
+  } catch (error: any) {
+    console.error("Failed to create session", error);
+    res.status(500).json({
+      error: "Failed to create session",
+      details: error.message
+    });
   }
 });
 

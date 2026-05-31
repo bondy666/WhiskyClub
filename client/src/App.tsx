@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-
 
 type Session = {
   Id: number;
@@ -10,9 +9,28 @@ type Session = {
   Status: string;
 };
 
+type Whisky = {
+  Id: number;
+  Name: string;
+  Distillery?: string;
+  Region?: string;
+  AgeYears?: number;
+  ABV?: number;
+  Price?: number;
+};
 
+type TastingEntry = {
+  Id: number;
+  WhiskyName: string;
+  NoseNotes?: string;
+  PalateNotes?: string;
+  FinishNotes?: string;
+  Score?: number;
+  CreatedAt: string;
+};
 
-const API_URL = "https://whiskyclub-web-akc8dgc8dtfndugm.ukwest-01.azurewebsites.net";
+const API_URL =
+  "https://whiskyclub-web-akc8dgc8dtfndugm.ukwest-01.azurewebsites.net";
 
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -20,11 +38,19 @@ function SessionsPage() {
   const [sessionDate, setSessionDate] = useState("");
   const [theme, setTheme] = useState("");
 
-  async function loadSessions() {
-    const res = await fetch(`${API_URL}/api/sessions`);
-    const data = await res.json();
-    setSessions(data);
+const loadSessions = useCallback(async () => {
+  const res = await fetch(`${API_URL}/api/sessions`);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to load sessions: ${res.status} ${errorText}`);
+    return;
   }
+
+  const data = await res.json();
+  console.log("Loaded sessions from API:", data);
+  setSessions(data);
+}, []);
 
   async function createSession(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +70,7 @@ function SessionsPage() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      alert(`Failed: ${res.status} ${errorText}`);
+      alert(`Failed to create session: ${res.status} ${errorText}`);
       return;
     }
 
@@ -56,18 +82,17 @@ function SessionsPage() {
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadSessions();
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, []);
+    void loadSessions();
+  }, [loadSessions]);
 
   return (
     <>
       <h2>Create Session</h2>
 
-      <form onSubmit={createSession} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
+      <form
+        onSubmit={createSession}
+        style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
+      >
         <input
           placeholder="Session name"
           value={name}
@@ -115,16 +140,6 @@ function SessionsPage() {
   );
 }
 
-type Whisky = {
-  Id: number;
-  Name: string;
-  Distillery?: string;
-  Region?: string;
-  AgeYears?: number;
-  ABV?: number;
-  Price?: number;
-};
-
 function WhiskiesPage() {
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
   const [name, setName] = useState("");
@@ -134,11 +149,18 @@ function WhiskiesPage() {
   const [abv, setAbv] = useState("");
   const [price, setPrice] = useState("");
 
-  async function loadWhiskies() {
+  const loadWhiskies = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/whiskies`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load whiskies: ${res.status} ${errorText}`);
+      return;
+    }
+
     const data = await res.json();
     setWhiskies(data);
-  }
+  }, []);
 
   async function createWhisky(e: React.FormEvent) {
     e.preventDefault();
@@ -160,7 +182,7 @@ function WhiskiesPage() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      alert(`Failed: ${res.status} ${errorText}`);
+      alert(`Failed to create whisky: ${res.status} ${errorText}`);
       return;
     }
 
@@ -175,25 +197,58 @@ function WhiskiesPage() {
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadWhiskies();
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, []);
-
+    void loadWhiskies();
+  }, [loadWhiskies]);
 
   return (
     <>
       <h2>Add Whisky</h2>
 
-      <form onSubmit={createWhisky} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
-        <input placeholder="Whisky name" value={name} onChange={e => setName(e.target.value)} required />
-        <input placeholder="Distillery" value={distillery} onChange={e => setDistillery(e.target.value)} />
-        <input placeholder="Region" value={region} onChange={e => setRegion(e.target.value)} />
-        <input placeholder="Age" type="number" value={ageYears} onChange={e => setAgeYears(e.target.value)} />
-        <input placeholder="ABV" type="number" step="0.1" value={abv} onChange={e => setAbv(e.target.value)} />
-        <input placeholder="Price" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+      <form
+        onSubmit={createWhisky}
+        style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
+      >
+        <input
+          placeholder="Whisky name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          required
+        />
+
+        <input
+          placeholder="Distillery"
+          value={distillery}
+          onChange={e => setDistillery(e.target.value)}
+        />
+
+        <input
+          placeholder="Region"
+          value={region}
+          onChange={e => setRegion(e.target.value)}
+        />
+
+        <input
+          placeholder="Age"
+          type="number"
+          value={ageYears}
+          onChange={e => setAgeYears(e.target.value)}
+        />
+
+        <input
+          placeholder="ABV"
+          type="number"
+          step="0.1"
+          value={abv}
+          onChange={e => setAbv(e.target.value)}
+        />
+
+        <input
+          placeholder="Price"
+          type="number"
+          step="0.01"
+          value={price}
+          onChange={e => setPrice(e.target.value)}
+        />
 
         <button type="submit">Add Whisky</button>
       </form>
@@ -201,13 +256,21 @@ function WhiskiesPage() {
       <h2>Whiskies</h2>
 
       {whiskies.map(whisky => (
-        <div key={whisky.Id} style={{ border: "1px solid #ccc", padding: "1rem", marginBottom: "1rem", borderRadius: "8px" }}>
+        <div
+          key={whisky.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
           <strong>{whisky.Name}</strong>
           <p>{whisky.Distillery}</p>
           <p>{whisky.Region}</p>
           <small>
-            {whisky.AgeYears ? `${whisky.AgeYears} years` : ""}{" "}
-            {whisky.ABV ? `${whisky.ABV}%` : ""}{" "}
+            {whisky.AgeYears ? `${whisky.AgeYears} years ` : ""}
+            {whisky.ABV ? `${whisky.ABV}% ` : ""}
             {whisky.Price ? `£${whisky.Price}` : ""}
           </small>
         </div>
@@ -219,6 +282,7 @@ function WhiskiesPage() {
 function SessionDetailPage() {
   const { id } = useParams();
 
+  const [entries, setEntries] = useState<TastingEntry[]>([]);
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
   const [whiskyId, setWhiskyId] = useState("");
   const [noseNotes, setNoseNotes] = useState("");
@@ -226,14 +290,41 @@ function SessionDetailPage() {
   const [finishNotes, setFinishNotes] = useState("");
   const [score, setScore] = useState("");
 
-  async function loadWhiskies() {
+  const loadWhiskies = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/whiskies`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load whiskies: ${res.status} ${errorText}`);
+      return;
+    }
+
     const data = await res.json();
     setWhiskies(data);
-  }
+  }, []);
+
+  const loadTastingEntries = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/sessions/${id}/tasting-entries`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load tasting entries: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setEntries(data);
+  }, [id]);
 
   async function createTastingEntry(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!id) {
+      alert("No session ID found.");
+      return;
+    }
 
     const res = await fetch(`${API_URL}/api/tasting-entries`, {
       method: "POST",
@@ -252,7 +343,7 @@ function SessionDetailPage() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      alert(`Failed: ${res.status} ${errorText}`);
+      alert(`Failed to create tasting entry: ${res.status} ${errorText}`);
       return;
     }
 
@@ -262,28 +353,27 @@ function SessionDetailPage() {
     setFinishNotes("");
     setScore("");
 
-    alert("Tasting entry saved");
+    await loadTastingEntries();
   }
 
   useEffect(() => {
-    const load = async () => {
-      await loadWhiskies();
-    };
-
-    void load();
-  }, []);
-
-
-
-
+    void loadWhiskies();
+    void loadTastingEntries();
+  }, [loadWhiskies, loadTastingEntries]);
 
   return (
     <>
       <h2>Add Tasting Entry</h2>
-      <p>Session ID: {id}</p>
 
-      <form onSubmit={createTastingEntry} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
-        <select value={whiskyId} onChange={e => setWhiskyId(e.target.value)} required>
+      <form
+        onSubmit={createTastingEntry}
+        style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
+      >
+        <select
+          value={whiskyId}
+          onChange={e => setWhiskyId(e.target.value)}
+          required
+        >
           <option value="">Select whisky</option>
           {whiskies.map(whisky => (
             <option key={whisky.Id} value={whisky.Id}>
@@ -292,9 +382,23 @@ function SessionDetailPage() {
           ))}
         </select>
 
-        <textarea placeholder="Nose notes" value={noseNotes} onChange={e => setNoseNotes(e.target.value)} />
-        <textarea placeholder="Palate notes" value={palateNotes} onChange={e => setPalateNotes(e.target.value)} />
-        <textarea placeholder="Finish notes" value={finishNotes} onChange={e => setFinishNotes(e.target.value)} />
+        <textarea
+          placeholder="Nose notes"
+          value={noseNotes}
+          onChange={e => setNoseNotes(e.target.value)}
+        />
+
+        <textarea
+          placeholder="Palate notes"
+          value={palateNotes}
+          onChange={e => setPalateNotes(e.target.value)}
+        />
+
+        <textarea
+          placeholder="Finish notes"
+          value={finishNotes}
+          onChange={e => setFinishNotes(e.target.value)}
+        />
 
         <input
           type="number"
@@ -308,6 +412,34 @@ function SessionDetailPage() {
         <button type="submit">Save Tasting Entry</button>
       </form>
 
+      <h2>Saved Tasting Entries</h2>
+
+      {entries.map(entry => (
+        <div
+          key={entry.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>{entry.WhiskyName}</strong>
+          <p>
+            <strong>Nose:</strong> {entry.NoseNotes}
+          </p>
+          <p>
+            <strong>Palate:</strong> {entry.PalateNotes}
+          </p>
+          <p>
+            <strong>Finish:</strong> {entry.FinishNotes}
+          </p>
+          <p>
+            <strong>Score:</strong> {entry.Score}/10
+          </p>
+        </div>
+      ))}
+
       <Link to="/">Back to Sessions</Link>
     </>
   );
@@ -315,7 +447,14 @@ function SessionDetailPage() {
 
 function App() {
   return (
-    <main style={{ padding: "1rem", fontFamily: "Arial", maxWidth: "480px", margin: "0 auto" }}>
+    <main
+      style={{
+        padding: "1rem",
+        fontFamily: "Arial",
+        maxWidth: "480px",
+        margin: "0 auto"
+      }}
+    >
       <h1>Whisky Club</h1>
 
       <nav style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
