@@ -145,9 +145,9 @@ app.get("/api/sessions", async (_req, res) => {
     const pool = await poolPromise;
 
     const result = await pool.request().query(`
-      SELECT Id, Name, SessionDate, Theme, Status, CreatedAt
+      SELECT TOP 100 *
       FROM TastingSessions
-      ORDER BY SessionDate DESC
+      ORDER BY Id DESC
     `);
 
     res.json(result.recordset);
