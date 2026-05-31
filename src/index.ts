@@ -69,6 +69,39 @@ app.post("/api/tasting-entries", async (req, res) => {
   }
 });
 
+app.get("/api/sessions/:id/tasting-entries", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("TastingSessionId", sql.Int, sessionId)
+      .query(`
+        SELECT
+          te.Id,
+          te.TastingSessionId,
+          te.WhiskyId,
+          w.Name AS WhiskyName,
+          te.NoseNotes,
+          te.PalateNotes,
+          te.FinishNotes,
+          te.Score,
+          te.CreatedAt
+        FROM TastingEntries te
+        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+        WHERE te.TastingSessionId = @TastingSessionId
+        ORDER BY te.CreatedAt DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to retrieve tasting entries",
+      details: error.message
+    });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
