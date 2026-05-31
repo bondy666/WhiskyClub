@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { poolPromise, sql } from "./db/sql";
 

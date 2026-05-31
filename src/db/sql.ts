@@ -1,3 +1,4 @@
+import "dotenv/config";
 import sql from "mssql";
 
 const connectionString = process.env.SQL_CONNECTION_STRING;
