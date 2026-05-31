@@ -44,6 +44,8 @@ app.post("/api/sessions", async (req, res) => {
       });
     }
 
+  
+
     const pool = await poolPromise;
 
     const result = await pool.request()
@@ -63,6 +65,53 @@ app.post("/api/sessions", async (req, res) => {
     res.status(500).json({ error: "Failed to create session" });
   }
 });
+
+app.get("/api/whiskies", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT Id, Name, Distillery, Region, AgeYears, ABV, Price, CreatedAt
+      FROM Whiskies
+      ORDER BY Name
+    `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to retrieve whiskies" });
+  }
+});
+
+app.post("/api/whiskies", async (req, res) => {
+  try {
+    const { name, distillery, region, ageYears, abv, price } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "name is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Name", sql.NVarChar(150), name)
+      .input("Distillery", sql.NVarChar(150), distillery || null)
+      .input("Region", sql.NVarChar(100), region || null)
+      .input("AgeYears", sql.Int, ageYears || null)
+      .input("ABV", sql.Decimal(5, 2), abv || null)
+      .input("Price", sql.Decimal(10, 2), price || null)
+      .query(`
+        INSERT INTO Whiskies (Name, Distillery, Region, AgeYears, ABV, Price)
+        OUTPUT INSERTED.*
+        VALUES (@Name, @Distillery, @Region, @AgeYears, @ABV, @Price)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to create whisky" });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
