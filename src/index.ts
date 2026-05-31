@@ -1,11 +1,80 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { poolPromise, sql } from "./db/sql";
 
 const app = express();
-const port = process.env.PORT || 3000;
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      // replace this later with your real production frontend URL
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+  })
+);
 
 app.use(express.json());
+
+app.get("/api/sessions", async (req, res) => {
+  res.json([]);
+});
+
+const port = process.env.PORT || 3000;
+
+
+app.post("/api/tasting-entries", async (req, res) => {
+  try {
+    const {
+      tastingSessionId,
+      whiskyId,
+      noseNotes,
+      palateNotes,
+      finishNotes,
+      score
+    } = req.body;
+
+    if (!tastingSessionId || !whiskyId) {
+      return res.status(400).json({
+        error: "tastingSessionId and whiskyId are required"
+      });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("TastingSessionId", sql.Int, tastingSessionId)
+      .input("WhiskyId", sql.Int, whiskyId)
+      .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
+      .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
+      .input("FinishNotes", sql.NVarChar(sql.MAX), finishNotes || null)
+      .input("Score", sql.Int, score || null)
+      .query(`
+        INSERT INTO TastingEntries
+          (TastingSessionId, WhiskyId, NoseNotes, PalateNotes, FinishNotes, Score)
+        OUTPUT INSERTED.*
+        VALUES
+          (@TastingSessionId, @WhiskyId, @NoseNotes, @PalateNotes, @FinishNotes, @Score)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error: any) {
+    console.error("Failed to create tasting entry", error);
+    res.status(500).json({
+      error: "Failed to create tasting entry",
+      details: error.message
+    });
+  }
+});
+
+
+app.listen(port, () => {
+  console.log(`Whisky Club API running on port ${port}`);
+});
+
+
 
 app.get("/", (_req, res) => {
   res.send("Whisky Club API is running");
