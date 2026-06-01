@@ -25,7 +25,10 @@ type TastingEntry = {
   NoseNotes?: string;
   PalateNotes?: string;
   FinishNotes?: string;
-  Score?: number;
+  NoseScore?: number;
+  PalateScore?: number;
+  FinishScore?: number;
+  OverallScore?: number;
   CreatedAt: string;
 };
 
@@ -294,7 +297,10 @@ function SessionDetailPage() {
   const [noseNotes, setNoseNotes] = useState("");
   const [palateNotes, setPalateNotes] = useState("");
   const [finishNotes, setFinishNotes] = useState("");
-  const [score, setScore] = useState("");
+  const [noseScore, setNoseScore] = useState("");
+  const [palateScore, setPalateScore] = useState("");
+  const [finishScore, setFinishScore] = useState("");
+  const [overallScore, setOverallScore] = useState("");
   const [summary, setSummary] = useState<SessionSummary[]>([]);
 
   const loadWhiskies = useCallback(async () => {
@@ -360,7 +366,10 @@ function SessionDetailPage() {
         noseNotes,
         palateNotes,
         finishNotes,
-        score: score ? Number(score) : null
+        noseScore: noseScore ? Number(noseScore) : null,
+        palateScore: palateScore ? Number(palateScore) : null,
+        finishScore: finishScore ? Number(finishScore) : null,
+        overallScore: overallScore ? Number(overallScore) : null
       })
     });
 
@@ -374,7 +383,10 @@ function SessionDetailPage() {
   setNoseNotes("");
   setPalateNotes("");
   setFinishNotes("");
-  setScore("");
+  setNoseScore("");
+  setPalateScore("");
+  setFinishScore("");
+  setOverallScore("");
 
   await loadTastingEntries();
   await loadSessionSummary();
@@ -425,14 +437,10 @@ function SessionDetailPage() {
           onChange={e => setFinishNotes(e.target.value)}
         />
 
-        <input
-          type="number"
-          min="0"
-          max="10"
-          placeholder="Score out of 10"
-          value={score}
-          onChange={e => setScore(e.target.value)}
-        />
+        <input type="number" min="0" max="10" placeholder="Nose score" value={noseScore} onChange={e => setNoseScore(e.target.value)} />
+        <input type="number" min="0" max="10" placeholder="Palate score" value={palateScore} onChange={e => setPalateScore(e.target.value)} />
+        <input type="number" min="0" max="10" placeholder="Finish score" value={finishScore} onChange={e => setFinishScore(e.target.value)} />
+        <input type="number" min="0" max="10" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
 
         <button type="submit">Save Tasting Entry</button>
       </form>
@@ -484,9 +492,10 @@ function SessionDetailPage() {
           <p>
             <strong>Finish:</strong> {entry.FinishNotes}
           </p>
-          <p>
-            <strong>Score:</strong> {entry.Score}/10
-          </p>
+          <p><strong>Nose score:</strong> {entry.NoseScore ?? "-"} / 10</p>
+          <p><strong>Palate score:</strong> {entry.PalateScore ?? "-"} / 10</p>
+          <p><strong>Finish score:</strong> {entry.FinishScore ?? "-"} / 10</p>
+          <p><strong>Overall score:</strong> {entry.OverallScore ?? "-"} / 10</p>
         </div>
       ))}
 
