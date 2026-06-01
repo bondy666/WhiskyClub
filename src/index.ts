@@ -18,10 +18,6 @@ app.use(
 
 app.use(express.json());
 
-app.get("/api/sessions", async (req, res) => {
-  res.json([]);
-});
-
 const port = process.env.PORT || 3000;
 
 
