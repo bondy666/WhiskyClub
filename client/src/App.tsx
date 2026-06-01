@@ -29,6 +29,12 @@ type TastingEntry = {
   CreatedAt: string;
 };
 
+type SessionSummary = {
+  WhiskyName: string;
+  AverageScore: number;
+  EntryCount: number;
+};
+
 const API_URL =
   "https://whiskyclub-web-akc8dgc8dtfndugm.ukwest-01.azurewebsites.net";
 
@@ -289,6 +295,7 @@ function SessionDetailPage() {
   const [palateNotes, setPalateNotes] = useState("");
   const [finishNotes, setFinishNotes] = useState("");
   const [score, setScore] = useState("");
+  const [summary, setSummary] = useState<SessionSummary[]>([]);
 
   const loadWhiskies = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/whiskies`);
@@ -302,6 +309,21 @@ function SessionDetailPage() {
     const data = await res.json();
     setWhiskies(data);
   }, []);
+
+  const loadSessionSummary = useCallback(async () => {
+  if (!id) return;
+
+  const res = await fetch(`${API_URL}/api/sessions/${id}/summary`);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to load summary: ${res.status} ${errorText}`);
+    return;
+  }
+
+  const data = await res.json();
+  setSummary(data);
+}, [id]);
 
   const loadTastingEntries = useCallback(async () => {
     if (!id) return;
@@ -326,6 +348,7 @@ function SessionDetailPage() {
       return;
     }
 
+    
     const res = await fetch(`${API_URL}/api/tasting-entries`, {
       method: "POST",
       headers: {
@@ -347,19 +370,21 @@ function SessionDetailPage() {
       return;
     }
 
-    setWhiskyId("");
-    setNoseNotes("");
-    setPalateNotes("");
-    setFinishNotes("");
-    setScore("");
+  setWhiskyId("");
+  setNoseNotes("");
+  setPalateNotes("");
+  setFinishNotes("");
+  setScore("");
 
-    await loadTastingEntries();
+  await loadTastingEntries();
+  await loadSessionSummary();
   }
 
   useEffect(() => {
-    void loadWhiskies();
-    void loadTastingEntries();
-  }, [loadWhiskies, loadTastingEntries]);
+  void loadWhiskies();
+  void loadTastingEntries();
+  void loadSessionSummary();
+}, [loadWhiskies, loadTastingEntries, loadSessionSummary]);
 
   return (
     <>
@@ -411,6 +436,31 @@ function SessionDetailPage() {
 
         <button type="submit">Save Tasting Entry</button>
       </form>
+
+
+      <h2>Leaderboard</h2>
+
+      {summary.length === 0 ? (
+        <p>No scores yet.</p>
+      ) : (
+        summary.map((item, index) => (
+          <div
+            key={item.WhiskyName}
+            style={{
+              border: "1px solid #ccc",
+              padding: "1rem",
+              marginBottom: "1rem",
+              borderRadius: "8px"
+            }}
+          >
+            <strong>
+              {index + 1}. {item.WhiskyName}
+            </strong>
+            <p>Average score: {item.AverageScore.toFixed(1)}/10</p>
+            <small>{item.EntryCount} entries</small>
+          </div>
+        ))
+      )}
 
       <h2>Saved Tasting Entries</h2>
 
