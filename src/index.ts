@@ -119,6 +119,38 @@ app.get("/api/debug/sessions", async (_req, res) => {
   }
 });
 
+app.get("/api/sessions/:id/summary", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .query(`
+        SELECT
+          w.Name AS WhiskyName,
+          AVG(CAST(te.Score AS FLOAT)) AS AverageScore,
+          COUNT(*) AS EntryCount
+        FROM TastingEntries te
+        INNER JOIN Whiskies w
+          ON te.WhiskyId = w.Id
+        WHERE te.TastingSessionId = @SessionId
+          AND te.Score IS NOT NULL
+        GROUP BY w.Name
+        ORDER BY AverageScore DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    console.error("Failed to retrieve session summary", error);
+    res.status(500).json({
+      error: "Failed to retrieve session summary",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
