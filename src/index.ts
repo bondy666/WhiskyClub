@@ -329,6 +329,39 @@ app.post("/api/whiskies", async (req, res) => {
   }
 });
 
+app.delete("/api/whiskies/:id", async (req, res) => {
+  try {
+    const whiskyId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("WhiskyId", sql.Int, whiskyId)
+      .query(`
+        DELETE FROM TastingEntries
+        WHERE WhiskyId = @WhiskyId
+      `);
+
+    const result = await pool.request()
+      .input("Id", sql.Int, whiskyId)
+      .query(`
+        DELETE FROM Whiskies
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Whisky not found" });
+    }
+
+    res.json({ message: "Whisky deleted" });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to delete whisky",
+      details: error.message
+    });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
