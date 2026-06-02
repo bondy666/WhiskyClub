@@ -24,13 +24,16 @@ const port = process.env.PORT || 3000;
 app.post("/api/tasting-entries", async (req, res) => {
   try {
     const {
-      tastingSessionId,
-      whiskyId,
-      noseNotes,
-      palateNotes,
-      finishNotes,
-      score
-    } = req.body;
+          tastingSessionId,
+          whiskyId,
+          noseNotes,
+          palateNotes,
+          finishNotes,
+          noseScore,
+          palateScore,
+          finishScore,
+          overallScore
+        } = req.body;
 
     if (!tastingSessionId || !whiskyId) {
       return res.status(400).json({
@@ -41,19 +44,42 @@ app.post("/api/tasting-entries", async (req, res) => {
     const pool = await poolPromise;
 
     const result = await pool.request()
-      .input("TastingSessionId", sql.Int, tastingSessionId)
-      .input("WhiskyId", sql.Int, whiskyId)
-      .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
-      .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
-      .input("FinishNotes", sql.NVarChar(sql.MAX), finishNotes || null)
-      .input("Score", sql.Int, score || null)
-      .query(`
-        INSERT INTO TastingEntries
-          (TastingSessionId, WhiskyId, NoseNotes, PalateNotes, FinishNotes, Score)
-        OUTPUT INSERTED.*
-        VALUES
-          (@TastingSessionId, @WhiskyId, @NoseNotes, @PalateNotes, @FinishNotes, @Score)
-      `);
+  .input("TastingSessionId", sql.Int, tastingSessionId)
+  .input("WhiskyId", sql.Int, whiskyId)
+  .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
+  .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
+  .input("FinishNotes", sql.NVarChar(sql.MAX), finishNotes || null)
+  .input("NoseScore", sql.Int, noseScore || null)
+  .input("PalateScore", sql.Int, palateScore || null)
+  .input("FinishScore", sql.Int, finishScore || null)
+  .input("OverallScore", sql.Int, overallScore || null)
+  .query(`
+    INSERT INTO TastingEntries
+      (
+        TastingSessionId,
+        WhiskyId,
+        NoseNotes,
+        PalateNotes,
+        FinishNotes,
+        NoseScore,
+        PalateScore,
+        FinishScore,
+        OverallScore
+      )
+    OUTPUT INSERTED.*
+    VALUES
+      (
+        @TastingSessionId,
+        @WhiskyId,
+        @NoseNotes,
+        @PalateNotes,
+        @FinishNotes,
+        @NoseScore,
+        @PalateScore,
+        @FinishScore,
+        @OverallScore
+      )
+  `);
 
     res.status(201).json(result.recordset[0]);
   } catch (error: any) {
@@ -82,7 +108,10 @@ app.get("/api/sessions/:id/tasting-entries", async (req, res) => {
           te.NoseNotes,
           te.PalateNotes,
           te.FinishNotes,
-          te.Score,
+          te.NoseScore,
+          te.PalateScore,
+          te.FinishScore,
+          te.OverallScore,
           te.CreatedAt
         FROM TastingEntries te
         INNER JOIN Whiskies w ON te.WhiskyId = w.Id
@@ -130,7 +159,7 @@ app.get("/api/sessions/:id/summary", async (req, res) => {
       .query(`
         SELECT
           w.Name AS WhiskyName,
-          AVG(CAST(te.Score AS FLOAT)) AS AverageScore,
+          AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScore,
           COUNT(*) AS EntryCount
         FROM TastingEntries te
         INNER JOIN Whiskies w
@@ -146,6 +175,42 @@ app.get("/api/sessions/:id/summary", async (req, res) => {
     console.error("Failed to retrieve session summary", error);
     res.status(500).json({
       error: "Failed to retrieve session summary",
+      details: error.message
+    });
+  }
+});
+
+
+
+app.delete("/api/sessions/:id", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("TastingSessionId", sql.Int, sessionId)
+      .query(`
+        DELETE FROM TastingEntries
+        WHERE TastingSessionId = @TastingSessionId
+      `);
+
+    const result = await pool.request()
+      .input("Id", sql.Int, sessionId)
+      .query(`
+        DELETE FROM TastingSessions
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    res.json({ message: "Session deleted" });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to delete session",
       details: error.message
     });
   }
