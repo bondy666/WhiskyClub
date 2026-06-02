@@ -49,10 +49,10 @@ app.post("/api/tasting-entries", async (req, res) => {
   .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
   .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
   .input("FinishNotes", sql.NVarChar(sql.MAX), finishNotes || null)
-  .input("NoseScore", sql.Int, noseScore || null)
-  .input("PalateScore", sql.Int, palateScore || null)
-  .input("FinishScore", sql.Int, finishScore || null)
-  .input("OverallScore", sql.Int, overallScore || null)
+  .input("NoseScore", sql.Decimal(3, 1), noseScore || null)
+  .input("PalateScore", sql.Decimal(3, 1), palateScore || null)
+  .input("FinishScore", sql.Decimal(3, 1), finishScore || null)
+  .input("OverallScore", sql.Decimal(3, 1), overallScore || null)
   .query(`
     INSERT INTO TastingEntries
       (
@@ -403,6 +403,33 @@ app.put("/api/sessions/:id", async (req, res) => {
   } catch (error: any) {
     res.status(500).json({
       error: "Failed to update session",
+      details: error.message
+    });
+  }
+});
+
+app.delete("/api/tasting-entries/:id", async (req, res) => {
+  try {
+    const entryId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, entryId)
+      .query(`
+        DELETE FROM TastingEntries
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Tasting entry not found" });
+    }
+
+    res.json({ message: "Tasting entry deleted" });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to delete tasting entry",
       details: error.message
     });
   }
