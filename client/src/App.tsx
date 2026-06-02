@@ -46,8 +46,9 @@ function SessionsPage() {
   const [name, setName] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [theme, setTheme] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
   const res = await fetch(`${API_URL}/api/sessions`);
 
   if (!res.ok) {
@@ -61,35 +62,48 @@ const loadSessions = useCallback(async () => {
   setSessions(data);
 }, []);
 
-  async function createSession(e: React.FormEvent) {
-    e.preventDefault();
+async function createSession(e: React.FormEvent) {
+  e.preventDefault();
 
-    const res = await fetch(`${API_URL}/api/sessions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name,
-        sessionDate,
-        theme,
-        status: "planned"
-      })
-    });
+  const url = editingId
+    ? `${API_URL}/api/sessions/${editingId}`
+    : `${API_URL}/api/sessions`;
 
+  const method = editingId ? "PUT" : "POST";
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert(`Failed to create session: ${res.status} ${errorText}`);
-      return;
-    }
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name,
+      sessionDate,
+      theme,
+      status: "planned"
+    })
+  });
 
-    setName("");
-    setSessionDate("");
-    setTheme("");
-
-    await loadSessions();
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to save session: ${res.status} ${errorText}`);
+    return;
   }
+
+  setName("");
+  setSessionDate("");
+  setTheme("");
+  setEditingId(null);
+
+  await loadSessions();
+}
+
+function startEditSession(session: Session) {
+  setEditingId(session.Id);
+  setName(session.Name);
+  setSessionDate(session.SessionDate.slice(0, 10));
+  setTheme(session.Theme || "");
+}
  
   async function deleteSession(id: number) {
   if (!confirm("Delete this session and its tasting entries?")) {
@@ -115,7 +129,7 @@ const loadSessions = useCallback(async () => {
 
   return (
     <>
-      <h2>Create Session</h2>
+      <h2>{editingId ? "Edit Session" : "Create Session"}</h2>
 
       <form
         onSubmit={createSession}
@@ -141,7 +155,23 @@ const loadSessions = useCallback(async () => {
           onChange={e => setTheme(e.target.value)}
         />
 
-        <button type="submit">Create Session</button>
+        <button type="submit">
+  {editingId ? "Save Changes" : "Create Session"}
+</button>
+
+{editingId && (
+  <button
+    type="button"
+    onClick={() => {
+      setEditingId(null);
+      setName("");
+      setSessionDate("");
+      setTheme("");
+    }}
+  >
+    Cancel Edit
+  </button>
+)}<button type="submit">Create Session</button>
       </form>
 
       <h2>Tasting Sessions</h2>
@@ -166,6 +196,18 @@ const loadSessions = useCallback(async () => {
     <small>{session.Status}</small>
 
 <br />
+
+<button
+  type="button"
+  onClick={() => startEditSession(session)}
+  style={{
+    marginTop: "0.75rem",
+    padding: "0.5rem",
+    marginRight: "0.5rem"
+  }}
+>
+  Edit Session
+</button>
 
 <button
   type="button"
@@ -239,6 +281,24 @@ function WhiskiesPage() {
 
     await loadWhiskies();
   }
+
+  async function deleteWhisky(id: number) {
+  if (!confirm("Delete this whisky and all related tasting entries?")) {
+    return;
+  }
+
+  const res = await fetch(`${API_URL}/api/whiskies/${id}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to delete whisky: ${res.status} ${errorText}`);
+    return;
+  }
+
+  await loadWhiskies();
+}
 
   useEffect(() => {
     void loadWhiskies();
@@ -317,6 +377,16 @@ function WhiskiesPage() {
             {whisky.ABV ? `${whisky.ABV}% ` : ""}
             {whisky.Price ? `£${whisky.Price}` : ""}
           </small>
+
+          <br />
+
+          <button
+            type="button"
+            onClick={() => deleteWhisky(whisky.Id)}
+            style={{ marginTop: "0.75rem", padding: "0.5rem" }}
+          >
+            Delete Whisky
+          </button>
         </div>
       ))}
     </>
@@ -472,10 +542,10 @@ function SessionDetailPage() {
           onChange={e => setFinishNotes(e.target.value)}
         />
 
-        <input type="number" min="0" max="10" placeholder="Nose score" value={noseScore} onChange={e => setNoseScore(e.target.value)} />
-        <input type="number" min="0" max="10" placeholder="Palate score" value={palateScore} onChange={e => setPalateScore(e.target.value)} />
-        <input type="number" min="0" max="10" placeholder="Finish score" value={finishScore} onChange={e => setFinishScore(e.target.value)} />
-        <input type="number" min="0" max="10" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
+        <input type="number" min="0" max="10" step="0.5" placeholder="Nose score" value={noseScore} onChange={e => setNoseScore(e.target.value)} />
+        <input type="number" min="0" max="10" step="0.5" placeholder="Palate score" value={palateScore} onChange={e => setPalateScore(e.target.value)} />
+        <input type="number" min="0" max="10" step="0.5" placeholder="Finish score" value={finishScore} onChange={e => setFinishScore(e.target.value)} />
+        <input type="number" min="0" max="10" step="0.5" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
 
         <button type="submit">Save Tasting Entry</button>
       </form>
