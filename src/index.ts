@@ -435,6 +435,60 @@ app.delete("/api/tasting-entries/:id", async (req, res) => {
   }
 });
 
+app.put("/api/tasting-entries/:id", async (req, res) => {
+  try {
+    const entryId = Number(req.params.id);
+
+    const {
+      noseNotes,
+      palateNotes,
+      finishNotes,
+      noseScore,
+      palateScore,
+      finishScore,
+      overallScore
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, entryId)
+      .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
+      .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
+      .input("FinishNotes", sql.NVarChar(sql.MAX), finishNotes || null)
+      .input("NoseScore", sql.Decimal(3, 1), noseScore || null)
+      .input("PalateScore", sql.Decimal(3, 1), palateScore || null)
+      .input("FinishScore", sql.Decimal(3, 1), finishScore || null)
+      .input("OverallScore", sql.Decimal(3, 1), overallScore || null)
+      .query(`
+        UPDATE TastingEntries
+        SET
+          NoseNotes = @NoseNotes,
+          PalateNotes = @PalateNotes,
+          FinishNotes = @FinishNotes,
+          NoseScore = @NoseScore,
+          PalateScore = @PalateScore,
+          FinishScore = @FinishScore,
+          OverallScore = @OverallScore
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        error: "Tasting entry not found"
+      });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update tasting entry",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });

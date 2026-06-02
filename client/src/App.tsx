@@ -451,6 +451,27 @@ function SessionDetailPage() {
     setEntries(data);
   }, [id]);
 
+
+async function deleteTastingEntry(id: number) {
+  if (!confirm("Delete this tasting entry?")) {
+    return;
+  }
+
+  const res = await fetch(`${API_URL}/api/tasting-entries/${id}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to delete tasting entry: ${res.status} ${errorText}`);
+    return;
+  }
+
+  await loadTastingEntries();
+  await loadSessionSummary();
+}
+
+
   async function createTastingEntry(e: React.FormEvent) {
     e.preventDefault();
 
@@ -601,6 +622,17 @@ function SessionDetailPage() {
           <p><strong>Palate score:</strong> {entry.PalateScore ?? "-"} / 10</p>
           <p><strong>Finish score:</strong> {entry.FinishScore ?? "-"} / 10</p>
           <p><strong>Overall score:</strong> {entry.OverallScore ?? "-"} / 10</p>
+         
+          <button
+            type="button"
+            onClick={() => deleteTastingEntry(entry.Id)}
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem"
+            }}
+          >
+            Delete Entry
+          </button>
         </div>
       ))}
 
