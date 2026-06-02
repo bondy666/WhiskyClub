@@ -77,6 +77,7 @@ const loadSessions = useCallback(async () => {
       })
     });
 
+
     if (!res.ok) {
       const errorText = await res.text();
       alert(`Failed to create session: ${res.status} ${errorText}`);
@@ -89,6 +90,24 @@ const loadSessions = useCallback(async () => {
 
     await loadSessions();
   }
+ 
+  async function deleteSession(id: number) {
+  if (!confirm("Delete this session and its tasting entries?")) {
+    return;
+  }
+
+  const res = await fetch(`${API_URL}/api/sessions/${id}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to delete session: ${res.status} ${errorText}`);
+    return;
+  }
+
+  await loadSessions();
+}
 
   useEffect(() => {
     void loadSessions();
@@ -128,23 +147,39 @@ const loadSessions = useCallback(async () => {
       <h2>Tasting Sessions</h2>
 
       {sessions.map(session => (
-        <div
-          key={session.Id}
-          style={{
-            border: "1px solid #ccc",
-            padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
-          }}
-        >
-          <Link to={`/sessions/${session.Id}`}>
-            <strong>{session.Name}</strong>
-          </Link>
-          <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
-          <p>{session.Theme}</p>
-          <small>{session.Status}</small>
-        </div>
-      ))}
+  <div
+    key={session.Id}
+    style={{
+      border: "1px solid #ccc",
+      padding: "1rem",
+      marginBottom: "1rem",
+      borderRadius: "8px"
+    }}
+  >
+    <Link to={`/sessions/${session.Id}`}>
+      <strong>{session.Name}</strong>
+    </Link>
+
+    <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
+    <p>{session.Theme}</p>
+
+    <small>{session.Status}</small>
+
+<br />
+
+<button
+  type="button"
+  onClick={() => deleteSession(session.Id)}
+  style={{
+    marginTop: "0.75rem",
+    padding: "0.5rem"
+  }}
+>
+  Delete Session
+</button>
+
+  </div>
+))}
     </>
   );
 }
