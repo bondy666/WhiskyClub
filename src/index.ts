@@ -363,6 +363,51 @@ app.delete("/api/whiskies/:id", async (req, res) => {
   }
 });
 
+app.put("/api/sessions/:id", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+
+    const {
+      name,
+      sessionDate,
+      theme,
+      status
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, sessionId)
+      .input("Name", sql.NVarChar(100), name)
+      .input("SessionDate", sql.Date, sessionDate)
+      .input("Theme", sql.NVarChar(200), theme || null)
+      .input("Status", sql.NVarChar(20), status)
+      .query(`
+        UPDATE TastingSessions
+        SET
+          Name = @Name,
+          SessionDate = @SessionDate,
+          Theme = @Theme,
+          Status = @Status
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({
+        error: "Session not found"
+      });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update session",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
