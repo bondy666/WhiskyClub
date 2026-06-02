@@ -165,7 +165,7 @@ app.get("/api/sessions/:id/summary", async (req, res) => {
         INNER JOIN Whiskies w
           ON te.WhiskyId = w.Id
         WHERE te.TastingSessionId = @SessionId
-          AND te.Score IS NOT NULL
+          AND te.OverallScore IS NOT NULL
         GROUP BY w.Name
         ORDER BY AverageScore DESC
       `);
@@ -216,9 +216,6 @@ app.delete("/api/sessions/:id", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Whisky Club API running on port ${port}`);
-});
 
 
 
