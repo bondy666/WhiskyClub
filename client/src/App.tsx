@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type Session = {
   Id: number;
@@ -43,6 +45,17 @@ type WhiskyStats = {
   WorstScore?: number;
 };
 
+type DashboardData = {
+  SessionCount: number;
+  WhiskyCount: number;
+  TastingEntryCount: number;
+  AverageOverallScore?: number;
+  TopWhisky?: {
+    WhiskyName: string;
+    AverageScore: number;
+  } | null;
+};
+
 type SessionSummary = {
   WhiskyName: string;
   AverageScore: number;
@@ -55,6 +68,7 @@ const API_URL =
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [theme, setTheme] = useState("");
   const [status, setStatus] = useState("planned");
@@ -109,6 +123,14 @@ async function createSession(e: React.FormEvent) {
   setEditingId(null);
 
   await loadSessions();
+
+  setMessage(
+    editingId
+      ? "✅ Session updated"
+      : "✅ Session created"
+  );
+
+  setTimeout(() => setMessage(""), 3000);
 }
 
 function startEditSession(session: Session) {
@@ -118,32 +140,50 @@ function startEditSession(session: Session) {
   setTheme(session.Theme || "");
   setStatus(session.Status || "planned");
 }
- 
-  async function deleteSession(id: number) {
-  if (!confirm("Delete this session and its tasting entries?")) {
-    return;
-  }
+
+async function deleteSession(id: number) {
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this session? This cannot be undone."
+  );
+
+  if (!confirmed) return;
 
   const res = await fetch(`${API_URL}/api/sessions/${id}`, {
     method: "DELETE"
   });
 
   if (!res.ok) {
-    const errorText = await res.text();
-    alert(`Failed to delete session: ${res.status} ${errorText}`);
+    alert(`Failed to delete session: ${res.statusText}`);
     return;
   }
 
   await loadSessions();
+
+  setMessage("🗑️ Session deleted");
+  setTimeout(() => setMessage(""), 3000);
 }
 
-  useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
+useEffect(() => {
+  void loadSessions();
+}, [loadSessions]);
 
-  return (
-    <>
-      <h2>{editingId ? "Edit Session" : "Create Session"}</h2>
+return (
+  <>
+    {message && (
+      <div
+        style={{
+          background: "#e8f5e9",
+          border: "1px solid #4caf50",
+          padding: "0.75rem",
+          borderRadius: "8px",
+          marginBottom: "1rem"
+        }}
+      >
+        {message}
+      </div>
+    )}
+
+    <h2>{editingId ? "Edit Session" : "Create Session"}</h2>
 
       <form
         onSubmit={createSession}
@@ -271,13 +311,15 @@ function startEditSession(session: Session) {
 
 function WhiskiesPage() {
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
+  const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [distillery, setDistillery] = useState("");
   const [region, setRegion] = useState("");
   const [ageYears, setAgeYears] = useState("");
   const [abv, setAbv] = useState("");
   const [price, setPrice] = useState("");
-
+  const [editingWhiskyId, setEditingWhiskyId] = useState<number | null>(null);
+  const [editingWhiskyName, setEditingWhiskyName] = useState("");
   const loadWhiskies = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/whiskies`);
 
@@ -292,38 +334,66 @@ function WhiskiesPage() {
   }, []);
 
   async function createWhisky(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
-    const res = await fetch(`${API_URL}/api/whiskies`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name,
-        distillery,
-        region,
-        ageYears: ageYears ? Number(ageYears) : null,
-        abv: abv ? Number(abv) : null,
-        price: price ? Number(price) : null
-      })
-    });
+  const url = editingWhiskyId
+    ? `${API_URL}/api/whiskies/${editingWhiskyId}`
+    : `${API_URL}/api/whiskies`;
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert(`Failed to create whisky: ${res.status} ${errorText}`);
-      return;
-    }
+  const method = editingWhiskyId ? "PUT" : "POST";
 
-    setName("");
-    setDistillery("");
-    setRegion("");
-    setAgeYears("");
-    setAbv("");
-    setPrice("");
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      name,
+      distillery,
+      region,
+      ageYears: ageYears ? Number(ageYears) : null,
+      abv: abv ? Number(abv) : null,
+      price: price ? Number(price) : null
+    })
+  });
 
-    await loadWhiskies();
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to save whisky: ${res.status} ${errorText}`);
+    return;
   }
+
+  setName("");
+  setDistillery("");
+  setRegion("");
+  setAgeYears("");
+  setAbv("");
+  setPrice("");
+
+  setEditingWhiskyId(null);
+  setEditingWhiskyName("");
+
+  await loadWhiskies();
+  setMessage(
+  editingWhiskyId
+    ? "✅ Whisky updated"
+    : "✅ Whisky created"
+);
+
+setTimeout(() => setMessage(""), 3000);
+}
+
+function startEditWhisky(whisky: Whisky) {
+  setEditingWhiskyId(whisky.Id);
+  setEditingWhiskyName(whisky.Name);
+
+  setName(whisky.Name);
+  setDistillery(whisky.Distillery || "");
+  setRegion(whisky.Region || "");
+  setAgeYears(whisky.AgeYears?.toString() || "");
+  setAbv(whisky.ABV?.toString() || "");
+  setPrice(whisky.Price?.toString() || "");
+}
 
   async function deleteWhisky(id: number) {
   if (!confirm("Delete this whisky and all related tasting entries?")) {
@@ -341,6 +411,8 @@ function WhiskiesPage() {
   }
 
   await loadWhiskies();
+  setMessage("🗑️ Whisky deleted");
+  setTimeout(() => setMessage(""), 3000);
 }
 
   useEffect(() => {
@@ -349,55 +421,119 @@ function WhiskiesPage() {
 
   return (
     <>
-      <h2>Add Whisky</h2>
-
+    {message && (
+        <div
+          style={{
+            background: "#e8f5e9",
+            border: "1px solid #4caf50",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          {message}
+        </div>
+      )}
+      <h2>{editingWhiskyId ? "Edit Whisky" : "Add Whisky"}</h2>
+        {editingWhiskyId && (
+          <div
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffeeba",
+              padding: "0.75rem",
+              borderRadius: "8px",
+              marginBottom: "1rem"
+            }}
+          >
+            Editing whisky: <strong>{editingWhiskyName}</strong>
+          </div>
+        )}
       <form
         onSubmit={createWhisky}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
       >
-        <input
-          placeholder="Whisky name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          required
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Whisky name
+          <input
+            placeholder="Whisky name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            required
+          />
+        </label>
 
-        <input
-          placeholder="Distillery"
-          value={distillery}
-          onChange={e => setDistillery(e.target.value)}
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Distillery
+          <input
+            placeholder="Distillery"
+            value={distillery}
+            onChange={e => setDistillery(e.target.value)}
+          />
+        </label>
 
-        <input
-          placeholder="Region"
-          value={region}
-          onChange={e => setRegion(e.target.value)}
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Region
+          <input
+            placeholder="Region"
+            value={region}
+            onChange={e => setRegion(e.target.value)}
+          />
+        </label>
 
-        <input
-          placeholder="Age"
-          type="number"
-          value={ageYears}
-          onChange={e => setAgeYears(e.target.value)}
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Age
+          <input
+            placeholder="Age"
+            type="number"
+            value={ageYears}
+            onChange={e => setAgeYears(e.target.value)}
+          />
+        </label>
 
-        <input
-          placeholder="ABV"
-          type="number"
-          step="0.1"
-          value={abv}
-          onChange={e => setAbv(e.target.value)}
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          ABV %
+          <input
+            placeholder="ABV"
+            type="number"
+            step="0.1"
+            value={abv}
+            onChange={e => setAbv(e.target.value)}
+          />
+        </label>
 
-        <input
-          placeholder="Price"
-          type="number"
-          step="0.01"
-          value={price}
-          onChange={e => setPrice(e.target.value)}
-        />
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Price £
+          <input
+            placeholder="Price"
+            type="number"
+            step="0.01"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+          />
+        </label>
 
-        <button type="submit">Add Whisky</button>
+        <button type="submit">
+  {editingWhiskyId ? "Save Changes" : "Add Whisky"}
+</button>
+
+      {editingWhiskyId && (
+        <button
+          type="button"
+          onClick={() => {
+            setEditingWhiskyId(null);
+            setEditingWhiskyName("");
+
+            setName("");
+            setDistillery("");
+            setRegion("");
+            setAgeYears("");
+            setAbv("");
+            setPrice("");
+          }}
+        >
+          Cancel Edit
+        </button>
+      )}
       </form>
 
       <h2>Whiskies</h2>
@@ -436,7 +572,17 @@ function WhiskiesPage() {
             </button>
           </Link>
 
-
+          <button
+            type="button"
+            onClick={() => startEditWhisky(whisky)}
+            style={{
+              marginTop: "0.75rem",
+              marginRight: "0.5rem",
+              padding: "0.5rem"
+            }}
+          >
+            Edit Whisky
+          </button>
 
           <button
             type="button"
@@ -455,6 +601,7 @@ function SessionDetailPage() {
   const { id } = useParams();
 
   const [entries, setEntries] = useState<TastingEntry[]>([]);
+  const [message, setMessage] = useState("");
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
   const [whiskyId, setWhiskyId] = useState("");
   const [noseNotes, setNoseNotes] = useState("");
@@ -465,6 +612,7 @@ function SessionDetailPage() {
   const [finishScore, setFinishScore] = useState("");
   const [overallScore, setOverallScore] = useState("");
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingEntryName, setEditingEntryName] = useState("");
   const [summary, setSummary] = useState<SessionSummary[]>([]);
 
   const loadWhiskies = useCallback(async () => {
@@ -528,10 +676,13 @@ async function deleteTastingEntry(id: number) {
 
   await loadTastingEntries();
   await loadSessionSummary();
-}
+  setMessage("🗑️ Tasting entry deleted");
+  setTimeout(() => setMessage(""), 3000);
+  }
 
 function startEditEntry(entry: TastingEntry) {
   setEditingEntryId(entry.Id);
+  setEditingEntryName(entry.WhiskyName);
 
   setNoseNotes(entry.NoseNotes || "");
   setPalateNotes(entry.PalateNotes || "");
@@ -581,17 +732,28 @@ function startEditEntry(entry: TastingEntry) {
       return;
     }
 
-  setWhiskyId("");
-  setNoseNotes("");
-  setPalateNotes("");
-  setFinishNotes("");
-  setNoseScore("");
-  setPalateScore("");
-  setFinishScore("");
-  setOverallScore("");
-  setEditingEntryId(null);
-  await loadTastingEntries();
-  await loadSessionSummary();
+    setWhiskyId("");
+    setNoseNotes("");
+    setPalateNotes("");
+    setFinishNotes("");
+    setNoseScore("");
+    setPalateScore("");
+    setFinishScore("");
+    setOverallScore("");
+
+    setEditingEntryId(null);
+    setEditingEntryName("");
+
+    await loadTastingEntries();
+    await loadSessionSummary();
+    setMessage(
+  editingEntryId
+    ? "✅ Tasting entry updated"
+    : "✅ Tasting entry saved"
+);
+
+setTimeout(() => setMessage(""), 3000);
+
   }
 
   useEffect(() => {
@@ -602,10 +764,35 @@ function startEditEntry(entry: TastingEntry) {
 
   return (
     <>
+    {message && (
+        <div
+          style={{
+            background: "#e8f5e9",
+            border: "1px solid #4caf50",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          {message}
+        </div>
+      )}
       <h2>
         {editingEntryId ? "Edit Tasting Entry" : "Add Tasting Entry"}
       </h2>
-
+      {editingEntryId && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
+        </div>
+      )}
       <form
         onSubmit={createTastingEntry}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
@@ -647,8 +834,33 @@ function startEditEntry(entry: TastingEntry) {
         <input type="number" min="0" max="10" step="0.5" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
 
         <button type="submit">
-           {editingEntryId ? "Save Changes" : "Save Tasting Entry"}
+  {editingEntryId ? "Save Changes" : "Save Tasting Entry"}
         </button>
+
+        {editingEntryId && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingEntryId(null);
+              setEditingEntryName("");
+
+              setWhiskyId("");
+              setNoseNotes("");
+              setPalateNotes("");
+              setFinishNotes("");
+
+              setNoseScore("");
+              setPalateScore("");
+              setFinishScore("");
+              setOverallScore("");
+            }}
+            style={{
+              marginLeft: "0.5rem"
+            }}
+          >
+            Cancel Edit
+          </button>
+        )}
       </form>
 
 
@@ -729,7 +941,7 @@ function startEditEntry(entry: TastingEntry) {
         </div>
       ))}
 
-      <Link to="/">Back to Sessions</Link>
+      <Link to="/sessions">Back to Sessions</Link>
     </>
   );
 }
@@ -757,10 +969,65 @@ function SessionResultsPage() {
     void loadSessionSummary();
   }, [loadSessionSummary]);
 
+
+  function exportResultsPdf() {
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.text("Whisky Club - Session Results", 14, 20);
+
+  doc.setFontSize(11);
+  doc.text(`Session ID: ${id}`, 14, 30);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37);
+
+  autoTable(doc, {
+    startY: 50,
+    head: [["Position", "Whisky", "Average Score", "Entries"]],
+    body: summary.map((item, index) => [
+      String(index + 1),
+      item.WhiskyName,
+      Number(item.AverageScore).toFixed(1),
+      String(item.EntryCount)
+    ])
+  });
+
+  doc.save(`session-${id}-results.pdf`);
+}
+
+
   return (
     <>
-      <h2>Session Results</h2>
+     <h2>🏆 Session Results</h2><h2>Session Results</h2>
+     <button
+        type="button"
+        onClick={exportResultsPdf}
+        disabled={summary.length === 0}
+        style={{
+          marginBottom: "1rem",
+          padding: "0.5rem"
+        }}
+      >
+        Export PDF
+      </button>
+      {summary.length > 0 && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "1rem",
+            borderRadius: "12px",
+            marginBottom: "1rem"
+          }}
+        >
+          <strong>
+            Winner: {summary[0].WhiskyName}
+          </strong>
 
+          <div>
+            Score: {Number(summary[0].AverageScore).toFixed(1)}
+          </div>
+        </div>
+      )}
       {summary.length === 0 ? (
         <p>No scored entries yet.</p>
       ) : (
@@ -768,21 +1035,43 @@ function SessionResultsPage() {
           <div
             key={item.WhiskyName}
             style={{
-              border: "1px solid #ccc",
+              border: "1px solid #ddd",
+              borderRadius: "12px",
               padding: "1rem",
               marginBottom: "1rem",
-              borderRadius: "8px"
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: "#fff"
             }}
           >
-            <strong>
-              {index === 0 && "🥇 "}
-              {index === 1 && "🥈 "}
-              {index === 2 && "🥉 "}
-              {index + 1}. {item.WhiskyName}
-            </strong>
+            <div>
+              <div
+                style={{
+                  fontSize: "1.2rem",
+                  fontWeight: "bold"
+                }}
+              >
+                {index === 0 && "🥇 "}
+                {index === 1 && "🥈 "}
+                {index === 2 && "🥉 "}
+                {item.WhiskyName}
+              </div>
 
-            <p>Average score: {item.AverageScore.toFixed(1)}/10</p>
-            <small>{item.EntryCount} entries</small>
+              <small>
+                {item.EntryCount} tasting
+                {item.EntryCount === 1 ? "" : "s"}
+              </small>
+            </div>
+
+            <div
+              style={{
+                fontSize: "2rem",
+                fontWeight: "bold"
+              }}
+            >
+              {Number(item.AverageScore).toFixed(1)}
+            </div>
           </div>
         ))
       )}
@@ -852,6 +1141,75 @@ function WhiskyStatsPage() {
   );
 }
 
+function DashboardPage() {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+
+  const loadDashboard = useCallback(async () => {
+    const res = await fetch(`${API_URL}/api/dashboard`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load dashboard: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setDashboard(data);
+  }, []);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  if (!dashboard) {
+    return <p>Loading dashboard...</p>;
+  }
+
+  return (
+    <>
+      <h2>Dashboard</h2>
+
+      <div style={{ display: "grid", gap: "1rem" }}>
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>Sessions</strong>
+          <p>{dashboard.SessionCount}</p>
+        </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>Whiskies</strong>
+          <p>{dashboard.WhiskyCount}</p>
+        </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>Tasting Entries</strong>
+          <p>{dashboard.TastingEntryCount}</p>
+        </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>Average Overall Score</strong>
+          <p>
+            {dashboard.AverageOverallScore
+              ? Number(dashboard.AverageOverallScore).toFixed(1)
+              : "-"}
+          </p>
+        </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>Top Whisky</strong>
+          {dashboard.TopWhisky ? (
+            <p>
+              {dashboard.TopWhisky.WhiskyName} —{" "}
+              {Number(dashboard.TopWhisky.AverageScore).toFixed(1)}
+            </p>
+          ) : (
+            <p>-</p>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function App() {
   return (
     <main
@@ -864,13 +1222,27 @@ function App() {
     >
       <h1>Whisky Club</h1>
 
-      <nav style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
-        <Link to="/">Sessions</Link>
+      <nav
+        style={{
+          position: "sticky",
+          bottom: 0,
+          background: "white",
+          borderTop: "1px solid #ccc",
+          padding: "0.75rem",
+          display: "flex",
+          justifyContent: "space-around",
+          marginBottom: "1rem",
+          zIndex: 10
+        }}
+      >
+        <Link to="/">Dashboard</Link>
+        <Link to="/sessions">Sessions</Link>
         <Link to="/whiskies">Whiskies</Link>
       </nav>
 
       <Routes>
-        <Route path="/" element={<SessionsPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/whiskies" element={<WhiskiesPage />} />
         <Route path="/whiskies/:id/stats" element={<WhiskyStatsPage />} />
         <Route path="/sessions/:id" element={<SessionDetailPage />} />
