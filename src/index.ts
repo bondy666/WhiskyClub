@@ -556,18 +556,18 @@ app.put("/api/whiskies/:id", async (req, res) => {
       .input("Price", sql.Decimal(10, 2), price || null)
       .input("ImageUrl", sql.NVarChar(1000), imageUrl || null)
       .query(`
-        UPDATE Whiskies
-        SET
-          Name = @Name,
-          Distillery = @Distillery,
-          Region = @Region,
-          AgeYears = @AgeYears,
-          ABV = @ABV,
-          Price = @Price
-          ImageUrl = @ImageUrl
-        OUTPUT INSERTED.*
-        WHERE Id = @Id
-      `);
+  UPDATE Whiskies
+  SET
+    Name = @Name,
+    Distillery = @Distillery,
+    Region = @Region,
+    AgeYears = @AgeYears,
+    ABV = @ABV,
+    Price = @Price,
+    ImageUrl = @ImageUrl
+  OUTPUT INSERTED.*
+  WHERE Id = @Id
+`);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: "Whisky not found" });
