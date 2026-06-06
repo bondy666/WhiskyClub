@@ -531,6 +531,89 @@ app.get("/api/whiskies/:id/stats", async (req, res) => {
   }
 });
 
+app.put("/api/whiskies/:id", async (req, res) => {
+  try {
+    const whiskyId = Number(req.params.id);
+    const { name, distillery, region, ageYears, abv, price } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, whiskyId)
+      .input("Name", sql.NVarChar(150), name)
+      .input("Distillery", sql.NVarChar(150), distillery || null)
+      .input("Region", sql.NVarChar(100), region || null)
+      .input("AgeYears", sql.Int, ageYears || null)
+      .input("ABV", sql.Decimal(5, 2), abv || null)
+      .input("Price", sql.Decimal(10, 2), price || null)
+      .query(`
+        UPDATE Whiskies
+        SET
+          Name = @Name,
+          Distillery = @Distillery,
+          Region = @Region,
+          AgeYears = @AgeYears,
+          ABV = @ABV,
+          Price = @Price
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Whisky not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update whisky",
+      details: error.message
+    });
+  }
+});
+
+
+app.put("/api/whiskies/:id", async (req, res) => {
+  try {
+    const whiskyId = Number(req.params.id);
+    const { name, distillery, region, ageYears, abv, price } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, whiskyId)
+      .input("Name", sql.NVarChar(150), name)
+      .input("Distillery", sql.NVarChar(150), distillery || null)
+      .input("Region", sql.NVarChar(100), region || null)
+      .input("AgeYears", sql.Int, ageYears || null)
+      .input("ABV", sql.Decimal(5, 2), abv || null)
+      .input("Price", sql.Decimal(10, 2), price || null)
+      .query(`
+        UPDATE Whiskies
+        SET
+          Name = @Name,
+          Distillery = @Distillery,
+          Region = @Region,
+          AgeYears = @AgeYears,
+          ABV = @ABV,
+          Price = @Price
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Whisky not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update whisky",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
