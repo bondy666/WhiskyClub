@@ -294,7 +294,7 @@ app.get("/api/whiskies", async (_req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
-      SELECT Id, Name, Distillery, Region, AgeYears, ABV, Price, CreatedAt
+      SELECT Id, Name, Distillery, Region, AgeYears, ABV, Price, ImageUrl, CreatedAt
       FROM Whiskies
       ORDER BY Name
     `);
@@ -308,7 +308,7 @@ app.get("/api/whiskies", async (_req, res) => {
 
 app.post("/api/whiskies", async (req, res) => {
   try {
-    const { name, distillery, region, ageYears, abv, price } = req.body;
+    const { name, distillery, region, ageYears, abv, price, imageUrl } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: "name is required" });
@@ -323,10 +323,11 @@ app.post("/api/whiskies", async (req, res) => {
       .input("AgeYears", sql.Int, ageYears || null)
       .input("ABV", sql.Decimal(5, 2), abv || null)
       .input("Price", sql.Decimal(10, 2), price || null)
+      .input("ImageUrl", sql.NVarChar(1000), imageUrl || null)
       .query(`
-        INSERT INTO Whiskies (Name, Distillery, Region, AgeYears, ABV, Price)
+        INSERT INTO Whiskies (Name, Distillery, Region, AgeYears, ABV, Price, ImageUrl)
         OUTPUT INSERTED.*
-        VALUES (@Name, @Distillery, @Region, @AgeYears, @ABV, @Price)
+        VALUES (@Name, @Distillery, @Region, @AgeYears, @ABV, @Price, @ImageUrl)
       `);
 
     res.status(201).json(result.recordset[0]);
@@ -541,7 +542,7 @@ app.get("/api/whiskies/:id/stats", async (req, res) => {
 app.put("/api/whiskies/:id", async (req, res) => {
   try {
     const whiskyId = Number(req.params.id);
-    const { name, distillery, region, ageYears, abv, price } = req.body;
+    const { name, distillery, region, ageYears, abv, price, imageUrl } = req.body;
 
     const pool = await poolPromise;
 
@@ -553,6 +554,7 @@ app.put("/api/whiskies/:id", async (req, res) => {
       .input("AgeYears", sql.Int, ageYears || null)
       .input("ABV", sql.Decimal(5, 2), abv || null)
       .input("Price", sql.Decimal(10, 2), price || null)
+      .input("ImageUrl", sql.NVarChar(1000), imageUrl || null)
       .query(`
         UPDATE Whiskies
         SET
@@ -562,6 +564,7 @@ app.put("/api/whiskies/:id", async (req, res) => {
           AgeYears = @AgeYears,
           ABV = @ABV,
           Price = @Price
+          ImageUrl = @ImageUrl
         OUTPUT INSERTED.*
         WHERE Id = @Id
       `);
