@@ -489,6 +489,48 @@ app.put("/api/tasting-entries/:id", async (req, res) => {
   }
 });
 
+app.get("/api/whiskies/:id/stats", async (req, res) => {
+  try {
+    const whiskyId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("WhiskyId", sql.Int, whiskyId)
+      .query(`
+        SELECT
+          w.Id,
+          w.Name,
+          w.Distillery,
+          w.Region,
+          COUNT(te.Id) AS TimesTasted,
+          AVG(CAST(te.OverallScore AS FLOAT)) AS AverageOverallScore,
+          MAX(te.OverallScore) AS BestScore,
+          MIN(te.OverallScore) AS WorstScore
+        FROM Whiskies w
+        LEFT JOIN TastingEntries te
+          ON w.Id = te.WhiskyId
+        WHERE w.Id = @WhiskyId
+        GROUP BY
+          w.Id,
+          w.Name,
+          w.Distillery,
+          w.Region
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Whisky not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to retrieve whisky stats",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
