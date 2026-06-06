@@ -571,6 +571,40 @@ app.put("/api/whiskies/:id", async (req, res) => {
     });
   }
 });
+app.get("/api/dashboard", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT
+        (SELECT COUNT(*) FROM TastingSessions) AS SessionCount,
+        (SELECT COUNT(*) FROM Whiskies) AS WhiskyCount,
+        (SELECT COUNT(*) FROM TastingEntries) AS TastingEntryCount,
+        (SELECT AVG(CAST(OverallScore AS FLOAT)) FROM TastingEntries WHERE OverallScore IS NOT NULL) AS AverageOverallScore
+    `);
+
+    const topWhisky = await pool.request().query(`
+      SELECT TOP 1
+        w.Name AS WhiskyName,
+        AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScore
+      FROM TastingEntries te
+      INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+      WHERE te.OverallScore IS NOT NULL
+      GROUP BY w.Name
+      ORDER BY AverageScore DESC
+    `);
+
+    res.json({
+      ...result.recordset[0],
+      TopWhisky: topWhisky.recordset[0] || null
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to load dashboard",
+      details: error.message
+    });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
