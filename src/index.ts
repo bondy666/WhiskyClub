@@ -25,6 +25,7 @@ app.post("/api/tasting-entries", async (req, res) => {
   try {
     const {
           tastingSessionId,
+          clubMemberId,
           whiskyId,
           noseNotes,
           palateNotes,
@@ -45,6 +46,7 @@ app.post("/api/tasting-entries", async (req, res) => {
 
     const result = await pool.request()
   .input("TastingSessionId", sql.Int, tastingSessionId)
+  .input("ClubMemberId", sql.Int, clubMemberId || null)
   .input("WhiskyId", sql.Int, whiskyId)
   .input("NoseNotes", sql.NVarChar(sql.MAX), noseNotes || null)
   .input("PalateNotes", sql.NVarChar(sql.MAX), palateNotes || null)
@@ -57,6 +59,7 @@ app.post("/api/tasting-entries", async (req, res) => {
     INSERT INTO TastingEntries
       (
         TastingSessionId,
+        ClubMemberId,
         WhiskyId,
         NoseNotes,
         PalateNotes,
@@ -70,6 +73,7 @@ app.post("/api/tasting-entries", async (req, res) => {
     VALUES
       (
         @TastingSessionId,
+        @ClubMemberId,
         @WhiskyId,
         @NoseNotes,
         @PalateNotes,
@@ -98,26 +102,29 @@ app.get("/api/sessions/:id/tasting-entries", async (req, res) => {
     const pool = await poolPromise;
 
     const result = await pool.request()
-      .input("TastingSessionId", sql.Int, sessionId)
-      .query(`
-        SELECT
-          te.Id,
-          te.TastingSessionId,
-          te.WhiskyId,
-          w.Name AS WhiskyName,
-          te.NoseNotes,
-          te.PalateNotes,
-          te.FinishNotes,
-          te.NoseScore,
-          te.PalateScore,
-          te.FinishScore,
-          te.OverallScore,
-          te.CreatedAt
-        FROM TastingEntries te
-        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
-        WHERE te.TastingSessionId = @TastingSessionId
-        ORDER BY te.CreatedAt DESC
-      `);
+  .input("TastingSessionId", sql.Int, sessionId)
+  .query(`
+    SELECT
+      te.Id,
+      te.TastingSessionId,
+      te.WhiskyId,
+      te.ClubMemberId,
+      cm.Name AS MemberName,
+      w.Name AS WhiskyName,
+      te.NoseNotes,
+      te.PalateNotes,
+      te.FinishNotes,
+      te.NoseScore,
+      te.PalateScore,
+      te.FinishScore,
+      te.OverallScore,
+      te.CreatedAt
+    FROM TastingEntries te
+    INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+    LEFT JOIN ClubMembers cm ON te.ClubMemberId = cm.Id
+    WHERE te.TastingSessionId = @TastingSessionId
+    ORDER BY te.CreatedAt DESC
+  `);
 
     res.json(result.recordset);
   } catch (error: any) {
