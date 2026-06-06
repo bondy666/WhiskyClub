@@ -32,6 +32,17 @@ type TastingEntry = {
   CreatedAt: string;
 };
 
+type WhiskyStats = {
+  Id: number;
+  Name: string;
+  Distillery?: string;
+  Region?: string;
+  TimesTasted: number;
+  AverageOverallScore?: number;
+  BestScore?: number;
+  WorstScore?: number;
+};
+
 type SessionSummary = {
   WhiskyName: string;
   AverageScore: number;
@@ -46,6 +57,7 @@ function SessionsPage() {
   const [name, setName] = useState("");
   const [sessionDate, setSessionDate] = useState("");
   const [theme, setTheme] = useState("");
+  const [status, setStatus] = useState("planned");
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const loadSessions = useCallback(async () => {
@@ -77,11 +89,11 @@ async function createSession(e: React.FormEvent) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      name,
-      sessionDate,
-      theme,
-      status: "planned"
-    })
+    name,
+    sessionDate,
+    theme,
+    status
+  })
   });
 
   if (!res.ok) {
@@ -93,6 +105,7 @@ async function createSession(e: React.FormEvent) {
   setName("");
   setSessionDate("");
   setTheme("");
+  setStatus("planned");
   setEditingId(null);
 
   await loadSessions();
@@ -103,6 +116,7 @@ function startEditSession(session: Session) {
   setName(session.Name);
   setSessionDate(session.SessionDate.slice(0, 10));
   setTheme(session.Theme || "");
+  setStatus(session.Status || "planned");
 }
  
   async function deleteSession(id: number) {
@@ -150,12 +164,22 @@ function startEditSession(session: Session) {
         />
 
         <input
-          placeholder="Theme"
-          value={theme}
-          onChange={e => setTheme(e.target.value)}
-        />
+  placeholder="Theme"
+  value={theme}
+  onChange={e => setTheme(e.target.value)}
+/>
 
-        <button type="submit">
+    <select
+      value={status}
+      onChange={e => setStatus(e.target.value)}
+    >
+      <option value="planned">Planned</option>
+      <option value="active">Active</option>
+      <option value="completed">Completed</option>
+    </select>
+
+    <button type="submit">
+
   {editingId ? "Save Changes" : "Create Session"}
 </button>
 
@@ -193,7 +217,11 @@ function startEditSession(session: Session) {
     <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
     <p>{session.Theme}</p>
 
-    <small>{session.Status}</small>
+<small>
+    {session.Status === "planned" && "🟡 Planned"}
+    {session.Status === "active" && "🟢 Active"}
+    {session.Status === "completed" && "⚫ Completed"}
+  </small>
 
 <br />
 
@@ -208,6 +236,21 @@ function startEditSession(session: Session) {
 >
   Edit Session
 </button>
+
+
+<Link to={`/sessions/${session.Id}/results`}>
+  <button
+    type="button"
+    style={{
+      marginTop: "0.75rem",
+      padding: "0.5rem",
+      marginRight: "0.5rem"
+    }}
+  >
+    View Results
+  </button>
+</Link>
+
 
 <button
   type="button"
@@ -380,6 +423,21 @@ function WhiskiesPage() {
 
           <br />
 
+          <Link to={`/whiskies/${whisky.Id}/stats`}>
+            <button
+              type="button"
+              style={{
+                marginTop: "0.75rem",
+                marginRight: "0.5rem",
+                padding: "0.5rem"
+              }}
+            >
+              View Stats
+            </button>
+          </Link>
+
+
+
           <button
             type="button"
             onClick={() => deleteWhisky(whisky.Id)}
@@ -406,6 +464,7 @@ function SessionDetailPage() {
   const [palateScore, setPalateScore] = useState("");
   const [finishScore, setFinishScore] = useState("");
   const [overallScore, setOverallScore] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [summary, setSummary] = useState<SessionSummary[]>([]);
 
   const loadWhiskies = useCallback(async () => {
@@ -471,7 +530,18 @@ async function deleteTastingEntry(id: number) {
   await loadSessionSummary();
 }
 
+function startEditEntry(entry: TastingEntry) {
+  setEditingEntryId(entry.Id);
 
+  setNoseNotes(entry.NoseNotes || "");
+  setPalateNotes(entry.PalateNotes || "");
+  setFinishNotes(entry.FinishNotes || "");
+
+  setNoseScore(entry.NoseScore?.toString() || "");
+  setPalateScore(entry.PalateScore?.toString() || "");
+  setFinishScore(entry.FinishScore?.toString() || "");
+  setOverallScore(entry.OverallScore?.toString() || "");
+}
   async function createTastingEntry(e: React.FormEvent) {
     e.preventDefault();
 
@@ -481,8 +551,14 @@ async function deleteTastingEntry(id: number) {
     }
 
     
-    const res = await fetch(`${API_URL}/api/tasting-entries`, {
-      method: "POST",
+    const url = editingEntryId
+      ? `${API_URL}/api/tasting-entries/${editingEntryId}`
+      : `${API_URL}/api/tasting-entries`;
+
+    const method = editingEntryId ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
       headers: {
         "Content-Type": "application/json"
       },
@@ -513,7 +589,7 @@ async function deleteTastingEntry(id: number) {
   setPalateScore("");
   setFinishScore("");
   setOverallScore("");
-
+  setEditingEntryId(null);
   await loadTastingEntries();
   await loadSessionSummary();
   }
@@ -526,7 +602,9 @@ async function deleteTastingEntry(id: number) {
 
   return (
     <>
-      <h2>Add Tasting Entry</h2>
+      <h2>
+        {editingEntryId ? "Edit Tasting Entry" : "Add Tasting Entry"}
+      </h2>
 
       <form
         onSubmit={createTastingEntry}
@@ -568,7 +646,9 @@ async function deleteTastingEntry(id: number) {
         <input type="number" min="0" max="10" step="0.5" placeholder="Finish score" value={finishScore} onChange={e => setFinishScore(e.target.value)} />
         <input type="number" min="0" max="10" step="0.5" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
 
-        <button type="submit">Save Tasting Entry</button>
+        <button type="submit">
+           {editingEntryId ? "Save Changes" : "Save Tasting Entry"}
+        </button>
       </form>
 
 
@@ -622,7 +702,20 @@ async function deleteTastingEntry(id: number) {
           <p><strong>Palate score:</strong> {entry.PalateScore ?? "-"} / 10</p>
           <p><strong>Finish score:</strong> {entry.FinishScore ?? "-"} / 10</p>
           <p><strong>Overall score:</strong> {entry.OverallScore ?? "-"} / 10</p>
-         
+          
+          <button
+            type="button"
+            onClick={() => startEditEntry(entry)}
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem",
+              marginRight: "0.5rem"
+            }}
+          >
+            Edit Entry
+          </button>
+
+
           <button
             type="button"
             onClick={() => deleteTastingEntry(entry.Id)}
@@ -638,6 +731,124 @@ async function deleteTastingEntry(id: number) {
 
       <Link to="/">Back to Sessions</Link>
     </>
+  );
+}
+
+function SessionResultsPage() {
+  const { id } = useParams();
+  const [summary, setSummary] = useState<SessionSummary[]>([]);
+
+  const loadSessionSummary = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/sessions/${id}/summary`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load summary: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setSummary(data);
+  }, [id]);
+
+  useEffect(() => {
+    void loadSessionSummary();
+  }, [loadSessionSummary]);
+
+  return (
+    <>
+      <h2>Session Results</h2>
+
+      {summary.length === 0 ? (
+        <p>No scored entries yet.</p>
+      ) : (
+        summary.map((item, index) => (
+          <div
+            key={item.WhiskyName}
+            style={{
+              border: "1px solid #ccc",
+              padding: "1rem",
+              marginBottom: "1rem",
+              borderRadius: "8px"
+            }}
+          >
+            <strong>
+              {index === 0 && "🥇 "}
+              {index === 1 && "🥈 "}
+              {index === 2 && "🥉 "}
+              {index + 1}. {item.WhiskyName}
+            </strong>
+
+            <p>Average score: {item.AverageScore.toFixed(1)}/10</p>
+            <small>{item.EntryCount} entries</small>
+          </div>
+        ))
+      )}
+
+      <Link to={`/sessions/${id}`}>Back to Session</Link>
+    </>
+  );
+}
+
+function WhiskyStatsPage() {
+  const { id } = useParams();
+  const [stats, setStats] = useState<WhiskyStats | null>(null);
+
+  const loadStats = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/whiskies/${id}/stats`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load stats: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setStats(data);
+  }, [id]);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  if (!stats) {
+    return <p>Loading...</p>;
+  }
+
+  return (
+    <main style={{ padding: "1rem" }}>
+      <h1>{stats.Name}</h1>
+
+      <p><strong>Distillery:</strong> {stats.Distillery}</p>
+      <p><strong>Region:</strong> {stats.Region}</p>
+
+      <hr />
+
+      <p><strong>Times Tasted:</strong> {stats.TimesTasted}</p>
+
+      <p>
+        <strong>Average Score:</strong>{" "}
+        {stats.AverageOverallScore
+          ? Number(stats.AverageOverallScore).toFixed(1)
+          : "-"}
+      </p>
+
+      <p>
+        <strong>Best Score:</strong>{" "}
+        {stats.BestScore ?? "-"}
+      </p>
+
+      <p>
+        <strong>Worst Score:</strong>{" "}
+        {stats.WorstScore ?? "-"}
+      </p>
+
+      <Link to="/whiskies">Back to Whiskies</Link>
+    </main>
   );
 }
 
@@ -661,8 +872,11 @@ function App() {
       <Routes>
         <Route path="/" element={<SessionsPage />} />
         <Route path="/whiskies" element={<WhiskiesPage />} />
+        <Route path="/whiskies/:id/stats" element={<WhiskyStatsPage />} />
         <Route path="/sessions/:id" element={<SessionDetailPage />} />
+        <Route path="/sessions/:id/results" element={<SessionResultsPage />} />
       </Routes>
+
     </main>
   );
 }
