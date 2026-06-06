@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useNavigate } from "react-router-dom";
 
 type Session = {
   Id: number;
@@ -19,11 +20,16 @@ type Whisky = {
   AgeYears?: number;
   ABV?: number;
   Price?: number;
+  ImageUrl?: string;
 };
 
 type TastingEntry = {
   Id: number;
   WhiskyName: string;
+
+  ClubMemberId?: number;
+  MemberName?: string;
+
   NoseNotes?: string;
   PalateNotes?: string;
   FinishNotes?: string;
@@ -60,6 +66,14 @@ type SessionSummary = {
   WhiskyName: string;
   AverageScore: number;
   EntryCount: number;
+};
+
+type Member = {
+  Id: number;
+  Name: string;
+  Email?: string;
+  IsActive: boolean;
+  CreatedAt: string;
 };
 
 const API_URL =
@@ -235,7 +249,7 @@ return (
   >
     Cancel Edit
   </button>
-)}<button type="submit">Create Session</button>
+)}
       </form>
 
       <h2>Tasting Sessions</h2>
@@ -310,6 +324,8 @@ return (
 }
 
 function WhiskiesPage() {
+  const navigate = useNavigate();
+
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
@@ -318,20 +334,21 @@ function WhiskiesPage() {
   const [ageYears, setAgeYears] = useState("");
   const [abv, setAbv] = useState("");
   const [price, setPrice] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [editingWhiskyId, setEditingWhiskyId] = useState<number | null>(null);
   const [editingWhiskyName, setEditingWhiskyName] = useState("");
   const loadWhiskies = useCallback(async () => {
-    const res = await fetch(`${API_URL}/api/whiskies`);
+  const res = await fetch(`${API_URL}/api/whiskies`);
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert(`Failed to load whiskies: ${res.status} ${errorText}`);
-      return;
-    }
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to load whiskies: ${res.status} ${errorText}`);
+    return;
+  }
 
-    const data = await res.json();
-    setWhiskies(data);
-  }, []);
+  const data = await res.json();
+  setWhiskies(data);
+}, []);
 
   async function createWhisky(e: React.FormEvent) {
   e.preventDefault();
@@ -353,7 +370,7 @@ function WhiskiesPage() {
       region,
       ageYears: ageYears ? Number(ageYears) : null,
       abv: abv ? Number(abv) : null,
-      price: price ? Number(price) : null
+      price: price ? Number(price) : null, imageUrl
     })
   });
 
@@ -369,7 +386,7 @@ function WhiskiesPage() {
   setAgeYears("");
   setAbv("");
   setPrice("");
-
+  setImageUrl("");
   setEditingWhiskyId(null);
   setEditingWhiskyName("");
 
@@ -386,7 +403,7 @@ setTimeout(() => setMessage(""), 3000);
 function startEditWhisky(whisky: Whisky) {
   setEditingWhiskyId(whisky.Id);
   setEditingWhiskyName(whisky.Name);
-
+  setImageUrl(whisky.ImageUrl || "");
   setName(whisky.Name);
   setDistillery(whisky.Distillery || "");
   setRegion(whisky.Region || "");
@@ -452,6 +469,15 @@ function startEditWhisky(whisky: Whisky) {
         onSubmit={createWhisky}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
       >
+
+       
+
+
+
+
+
+
+
         <label style={{ display: "grid", gap: "0.25rem" }}>
           Whisky name
           <input
@@ -512,6 +538,16 @@ function startEditWhisky(whisky: Whisky) {
           />
         </label>
 
+
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Image URL
+          <input
+            placeholder="https://example.com/bottle.jpg"
+            value={imageUrl}
+            onChange={e => setImageUrl(e.target.value)}
+          />
+        </label>        
+
         <button type="submit">
   {editingWhiskyId ? "Save Changes" : "Add Whisky"}
 </button>
@@ -529,6 +565,7 @@ function startEditWhisky(whisky: Whisky) {
             setAgeYears("");
             setAbv("");
             setPrice("");
+            setImageUrl("");
           }}
         >
           Cancel Edit
@@ -538,61 +575,79 @@ function startEditWhisky(whisky: Whisky) {
 
       <h2>Whiskies</h2>
 
-      {whiskies.map(whisky => (
-        <div
-          key={whisky.Id}
-          style={{
-            border: "1px solid #ccc",
-            padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
-          }}
-        >
-          <strong>{whisky.Name}</strong>
-          <p>{whisky.Distillery}</p>
-          <p>{whisky.Region}</p>
-          <small>
-            {whisky.AgeYears ? `${whisky.AgeYears} years ` : ""}
-            {whisky.ABV ? `${whisky.ABV}% ` : ""}
-            {whisky.Price ? `£${whisky.Price}` : ""}
-          </small>
+        {whiskies.map(whisky => (
+          <div
+            key={whisky.Id}
+            style={{
+              border: "1px solid #ccc",
+              padding: "1rem",
+              marginBottom: "1rem",
+              borderRadius: "8px"
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center"
+              }}
+            >
+              {whisky.ImageUrl && (
+                <img
+                  src={whisky.ImageUrl}
+                  alt={whisky.Name}
+                  style={{
+                    display: "block",
+                    width: "120px",
+                    height: "160px",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                    marginBottom: "0.75rem"
+                  }}
+                />
+              )}
 
-          <br />
+              <strong style={{ fontSize: "1.1rem" }}>
+                {whisky.Name}
+              </strong>
 
-          <Link to={`/whiskies/${whisky.Id}/stats`}>
+              <p>{whisky.Distillery}</p>
+              <p>{whisky.Region}</p>
+
+              <small>
+                {whisky.AgeYears ? `${whisky.AgeYears} years ` : ""}
+                {whisky.ABV ? `${whisky.ABV}% ` : ""}
+                {whisky.Price ? `£${whisky.Price}` : ""}
+              </small>
+            </div>
+
+            <br />
+
             <button
               type="button"
-              style={{
-                marginTop: "0.75rem",
-                marginRight: "0.5rem",
-                padding: "0.5rem"
-              }}
+              onClick={() => startEditWhisky(whisky)}
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              onClick={() => deleteWhisky(whisky.Id)}
+              style={{ marginLeft: "0.5rem" }}
+            >
+              Delete
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(`/whiskies/${whisky.Id}/stats`)}
+              style={{ marginLeft: "0.5rem" }}
             >
               View Stats
             </button>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => startEditWhisky(whisky)}
-            style={{
-              marginTop: "0.75rem",
-              marginRight: "0.5rem",
-              padding: "0.5rem"
-            }}
-          >
-            Edit Whisky
-          </button>
-
-          <button
-            type="button"
-            onClick={() => deleteWhisky(whisky.Id)}
-            style={{ marginTop: "0.75rem", padding: "0.5rem" }}
-          >
-            Delete Whisky
-          </button>
-        </div>
-      ))}
+          </div>
+        ))}
     </>
   );
 }
@@ -600,9 +655,13 @@ function startEditWhisky(whisky: Whisky) {
 function SessionDetailPage() {
   const { id } = useParams();
 
+  const [session, setSession] = useState<Session | null>(null);
+
   const [entries, setEntries] = useState<TastingEntry[]>([]);
   const [message, setMessage] = useState("");
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [memberId, setMemberId] = useState("");
   const [whiskyId, setWhiskyId] = useState("");
   const [noseNotes, setNoseNotes] = useState("");
   const [palateNotes, setPalateNotes] = useState("");
@@ -614,9 +673,28 @@ function SessionDetailPage() {
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [editingEntryName, setEditingEntryName] = useState("");
   const [summary, setSummary] = useState<SessionSummary[]>([]);
+  
 
-  const loadWhiskies = useCallback(async () => {
-    const res = await fetch(`${API_URL}/api/whiskies`);
+
+  const loadSession = useCallback(async () => {
+  if (!id) return;
+
+  const res = await fetch(`${API_URL}/api/sessions`);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to load session: ${res.status} ${errorText}`);
+    return;
+  }
+
+  const data: Session[] = await res.json();
+  const currentSession = data.find(s => s.Id === Number(id));
+
+  setSession(currentSession || null);
+}, [id]);
+
+const loadWhiskies = useCallback(async () => {
+  const res = await fetch(`${API_URL}/api/whiskies`);
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -627,6 +705,20 @@ function SessionDetailPage() {
     const data = await res.json();
     setWhiskies(data);
   }, []);
+
+  const loadMembers = useCallback(async () => {
+  const res = await fetch(`${API_URL}/api/members`);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to load members: ${res.status} ${errorText}`);
+    return;
+  }
+
+  const data = await res.json();
+  setMembers(data);
+}, []);
+
 
   const loadSessionSummary = useCallback(async () => {
   if (!id) return;
@@ -683,11 +775,11 @@ async function deleteTastingEntry(id: number) {
 function startEditEntry(entry: TastingEntry) {
   setEditingEntryId(entry.Id);
   setEditingEntryName(entry.WhiskyName);
-
+  setMemberId(entry.ClubMemberId?.toString() || "");
   setNoseNotes(entry.NoseNotes || "");
   setPalateNotes(entry.PalateNotes || "");
   setFinishNotes(entry.FinishNotes || "");
-
+  setMemberId(entry.ClubMemberId?.toString() || "");
   setNoseScore(entry.NoseScore?.toString() || "");
   setPalateScore(entry.PalateScore?.toString() || "");
   setFinishScore(entry.FinishScore?.toString() || "");
@@ -716,6 +808,7 @@ function startEditEntry(entry: TastingEntry) {
       body: JSON.stringify({
         tastingSessionId: Number(id),
         whiskyId: Number(whiskyId),
+        clubMemberId: memberId ? Number(memberId) : null,
         noseNotes,
         palateNotes,
         finishNotes,
@@ -733,6 +826,7 @@ function startEditEntry(entry: TastingEntry) {
     }
 
     setWhiskyId("");
+    setMemberId("");
     setNoseNotes("");
     setPalateNotes("");
     setFinishNotes("");
@@ -756,14 +850,36 @@ setTimeout(() => setMessage(""), 3000);
 
   }
 
-  useEffect(() => {
+useEffect(() => {
+  void loadSession();
   void loadWhiskies();
+  void loadMembers();
   void loadTastingEntries();
   void loadSessionSummary();
-}, [loadWhiskies, loadTastingEntries, loadSessionSummary]);
+}, [
+  loadSession,
+  loadWhiskies,
+  loadMembers,
+  loadTastingEntries,
+  loadSessionSummary
+]);
+const isCompleted = session?.Status === "completed";
 
-  return (
-    <>
+return (
+  <>
+    {isCompleted && (
+      <div
+        style={{
+          background: "#f5f5f5",
+          border: "1px solid #999",
+          padding: "0.75rem",
+          borderRadius: "8px",
+          marginBottom: "1rem"
+        }}
+      >
+        🔒 This session is completed and is read-only.
+      </div>
+    )}
     {message && (
         <div
           style={{
@@ -779,6 +895,19 @@ setTimeout(() => setMessage(""), 3000);
       )}
       <h2>
         {editingEntryId ? "Edit Tasting Entry" : "Add Tasting Entry"}
+        {isCompleted && (
+  <div
+    style={{
+      background: "#f5f5f5",
+      border: "1px solid #999",
+      padding: "0.75rem",
+      borderRadius: "8px",
+      marginBottom: "1rem"
+    }}
+  >
+    🔒 This session is completed and is read-only.
+  </div>
+)}
       </h2>
       {editingEntryId && (
         <div
@@ -793,10 +922,35 @@ setTimeout(() => setMessage(""), 3000);
           Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
         </div>
       )}
+      {!isCompleted && (
       <form
         onSubmit={createTastingEntry}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
       >
+
+        <label style={{ display: "grid", gap: "0.25rem" }}>
+          Club Member
+
+          <select
+            value={memberId}
+            onChange={e => setMemberId(e.target.value)}
+            required
+          >
+            <option value="">Select member</option>
+
+              {members
+              .filter(member => member.IsActive)
+              .map(member => (
+                <option key={member.Id} value={member.Id}>
+                  {member.Name}
+             </option>
+          ))}
+
+
+
+          </select>
+        </label>
+
         <select
           value={whiskyId}
           onChange={e => setWhiskyId(e.target.value)}
@@ -863,7 +1017,7 @@ setTimeout(() => setMessage(""), 3000);
         )}
       </form>
 
-
+)}
       <h2>Leaderboard</h2>
 
       {summary.length === 0 ? (
@@ -901,6 +1055,9 @@ setTimeout(() => setMessage(""), 3000);
           }}
         >
           <strong>{entry.WhiskyName}</strong>
+          <div>
+          👤 👤 {entry.MemberName || "No member recorded"}
+          </div>
           <p>
             <strong>Nose:</strong> {entry.NoseNotes}
           </p>
@@ -910,11 +1067,13 @@ setTimeout(() => setMessage(""), 3000);
           <p>
             <strong>Finish:</strong> {entry.FinishNotes}
           </p>
+
           <p><strong>Nose score:</strong> {entry.NoseScore ?? "-"} / 10</p>
           <p><strong>Palate score:</strong> {entry.PalateScore ?? "-"} / 10</p>
           <p><strong>Finish score:</strong> {entry.FinishScore ?? "-"} / 10</p>
           <p><strong>Overall score:</strong> {entry.OverallScore ?? "-"} / 10</p>
-          
+          {!isCompleted && (
+  <>
           <button
             type="button"
             onClick={() => startEditEntry(entry)}
@@ -927,7 +1086,10 @@ setTimeout(() => setMessage(""), 3000);
             Edit Entry
           </button>
 
-
+  </>
+)}
+          {!isCompleted && (
+  <>
           <button
             type="button"
             onClick={() => deleteTastingEntry(entry.Id)}
@@ -938,6 +1100,8 @@ setTimeout(() => setMessage(""), 3000);
           >
             Delete Entry
           </button>
+  </>
+)}          
         </div>
       ))}
 
@@ -995,9 +1159,26 @@ function SessionResultsPage() {
 }
 
 
+
   return (
     <>
      <h2>🏆 Session Results</h2><h2>Session Results</h2>
+
+        <div
+          style={{
+            background: "#f5f5f5",
+            border: "1px solid #999",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          🔒 This session is completed and is read-only.
+        </div>
+
+
+
+
      <button
         type="button"
         onClick={exportResultsPdf}
@@ -1210,6 +1391,152 @@ function DashboardPage() {
   );
 }
 
+function MembersPage() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
+
+  const loadMembers = useCallback(async () => {
+    const res = await fetch(`${API_URL}/api/members`);
+    const data = await res.json();
+    setMembers(data);
+  }, []);
+
+
+async function toggleMemberStatus(member: Member) {
+  const action = member.IsActive
+    ? "deactivate"
+    : "reactivate";
+
+  const confirmed = window.confirm(
+    `Are you sure you want to ${action} ${member.Name}?`
+  );
+
+  if (!confirmed) return;
+
+  const res = await fetch(
+    `${API_URL}/api/members/${member.Id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: member.Name,
+        email: member.Email,
+        isActive: !member.IsActive
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const errorText = await res.text();
+
+    alert(
+      `Failed to ${action} member: ${res.status} ${errorText}`
+    );
+
+    return;
+  }
+
+  await loadMembers();
+}
+
+
+
+  async function saveMember(e: React.FormEvent) {
+    e.preventDefault();
+
+    const url = editingMemberId
+      ? `${API_URL}/api/members/${editingMemberId}`
+      : `${API_URL}/api/members`;
+
+    const method = editingMemberId ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, isActive: true })
+    });
+
+    if (!res.ok) {
+      alert(`Failed to save member: ${res.status}`);
+      return;
+    }
+
+    setName("");
+    setEmail("");
+    setEditingMemberId(null);
+    await loadMembers();
+  }
+
+
+
+  function startEditMember(member: Member) {
+    setEditingMemberId(member.Id);
+    setName(member.Name);
+    setEmail(member.Email || "");
+  }
+
+  useEffect(() => {
+    void loadMembers();
+  }, [loadMembers]);
+
+  return (
+    <>
+      <h2>{editingMemberId ? "Edit Member" : "Add Member"}</h2>
+
+      <form onSubmit={saveMember} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
+        <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
+        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+
+        <button type="submit">
+          {editingMemberId ? "Save Changes" : "Add Member"}
+        </button>
+      </form>
+
+      <h2>Members</h2>
+
+      {members.map(member => (
+  <div
+    key={member.Id}
+    style={{
+      border: "1px solid #ccc",
+      padding: "1rem",
+      marginBottom: "1rem",
+      borderRadius: "8px"
+    }}
+  >
+    <strong>
+      {member.Name}
+      {!member.IsActive && " (Inactive)"}
+    </strong>
+    <p>{member.Email}</p>
+
+    <button
+      type="button"
+      onClick={() => startEditMember(member)}
+    >
+      Edit
+    </button>
+
+    <button
+  type="button"
+  onClick={() => toggleMemberStatus(member)}
+  style={{ marginLeft: "0.5rem" }}
+>
+  {member.IsActive ? "Deactivate" : "Reactivate"}
+</button>
+</div>
+))}
+    </>
+  );
+}
+
+
+
+
 function App() {
   return (
     <main
@@ -1238,6 +1565,7 @@ function App() {
         <Link to="/">Dashboard</Link>
         <Link to="/sessions">Sessions</Link>
         <Link to="/whiskies">Whiskies</Link>
+        <Link to="/members">Members</Link>
       </nav>
 
       <Routes>
@@ -1247,6 +1575,7 @@ function App() {
         <Route path="/whiskies/:id/stats" element={<WhiskyStatsPage />} />
         <Route path="/sessions/:id" element={<SessionDetailPage />} />
         <Route path="/sessions/:id/results" element={<SessionResultsPage />} />
+        <Route path="/members" element={<MembersPage />} />
       </Routes>
 
     </main>
