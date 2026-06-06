@@ -606,6 +606,129 @@ app.get("/api/dashboard", async (_req, res) => {
   }
 });
 
+app.get("/api/members", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT Id, Name, Email, IsActive, CreatedAt
+      FROM ClubMembers
+      ORDER BY Name
+    `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to retrieve members",
+      details: error.message
+    });
+  }
+});
+
+app.post("/api/members", async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "name is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Name", sql.NVarChar(100), name)
+      .input("Email", sql.NVarChar(255), email || null)
+      .query(`
+        INSERT INTO ClubMembers (Name, Email)
+        OUTPUT INSERTED.*
+        VALUES (@Name, @Email)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to create member",
+      details: error.message
+    });
+  }
+});
+
+app.put("/api/members/:id", async (req, res) => {
+  try {
+    const memberId = Number(req.params.id);
+    const { name, email, isActive } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, memberId)
+      .input("Name", sql.NVarChar(100), name)
+      .input("Email", sql.NVarChar(255), email || null)
+      .input("IsActive", sql.Bit, isActive ?? true)
+      .query(`
+        UPDATE ClubMembers
+        SET
+          Name = @Name,
+          Email = @Email,
+          IsActive = @IsActive
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update member",
+      details: error.message
+    });
+  }
+});
+
+app.delete("/api/members/:id", async (req, res) => {
+  try {
+    const memberId = Number(req.params.id);
+
+    const pool = await poolPromise;
+
+    const linkedEntries = await pool.request()
+      .input("ClubMemberId", sql.Int, memberId)
+      .query(`
+        SELECT COUNT(*) AS EntryCount
+        FROM TastingEntries
+        WHERE ClubMemberId = @ClubMemberId
+      `);
+
+    if (linkedEntries.recordset[0].EntryCount > 0) {
+      return res.status(400).json({
+        error: "Cannot delete member with tasting entries. Set them inactive instead."
+      });
+    }
+
+    const result = await pool.request()
+      .input("Id", sql.Int, memberId)
+      .query(`
+        DELETE FROM ClubMembers
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    res.json({ message: "Member deleted" });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to delete member",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
