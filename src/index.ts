@@ -282,11 +282,6 @@ app.delete("/api/sessions/:id", async (req, res) => {
 
 
 
-
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
-});
-
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -882,6 +877,12 @@ app.get("/api/members/:id/stats", async (req, res) => {
       details: error.message
     });
   }
+});
+
+// all /api routes above here
+
+app.use((_req, res) => {
+  res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
 app.listen(port, () => {
