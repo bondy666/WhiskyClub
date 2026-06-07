@@ -1530,6 +1530,55 @@ function MemberStatsPage() {
   );
 }
 
+
+function WhiskyLeaderboardPage() {
+  const [whiskies, setWhiskies] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/leaderboard/whiskies`)
+      .then(res => res.json())
+      .then(data => {
+        console.log("Leaderboard data:", data);
+        setWhiskies(data);
+});
+  }, []);
+
+return (
+  <>
+    <h2>🏆 Whisky Leaderboard</h2>
+
+    <p>Whiskies loaded: {whiskies.length}</p>
+
+    {whiskies.map((w, index) => (
+        <div
+          key={w.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>
+            #{index + 1} {w.Name}
+          </strong>
+
+          <p>{w.Distillery}</p>
+
+          <p>
+            Average Score: {Number(w.AverageScore).toFixed(1)}
+          </p>
+
+          <p>
+            Tastings: {w.TastingCount}
+          </p>
+        </div>
+      ))}
+    </>
+  );
+}
+
+
 function SessionResultsPage() {
   const { id } = useParams();
   const [results, setResults] = useState<any>(null);
@@ -1699,53 +1748,11 @@ function App() {
     flexWrap: "wrap"
   }}
 >
-  <Link
-    to="/"
-    style={{
-      padding: "0.5rem 1rem",
-      border: "1px solid #ccc",
-      borderRadius: "8px",
-      textDecoration: "none"
-    }}
-  >
-    🏠 Dashboard
-  </Link>
-
-  <Link
-    to="/sessions"
-    style={{
-      padding: "0.5rem 1rem",
-      border: "1px solid #ccc",
-      borderRadius: "8px",
-      textDecoration: "none"
-    }}
-  >
-    📅 Sessions
-  </Link>
-
-  <Link
-    to="/whiskies"
-    style={{
-      padding: "0.5rem 1rem",
-      border: "1px solid #ccc",
-      borderRadius: "8px",
-      textDecoration: "none"
-    }}
-  >
-    🥃 Whiskies
-  </Link>
-
-  <Link
-    to="/members"
-    style={{
-      padding: "0.5rem 1rem",
-      border: "1px solid #ccc",
-      borderRadius: "8px",
-      textDecoration: "none"
-    }}
-  >
-    👥 Members
-  </Link>
+  <Link to="/">🏠 Dashboard</Link>
+  <Link to="/sessions">📅 Sessions</Link>
+  <Link to="/whiskies">🥃 Whiskies</Link>
+  <Link to="/members">👥 Members</Link>
+  <Link to="/leaderboard">🏆 Leaderboard</Link>
 </nav>
 
       <Routes>
@@ -1757,6 +1764,7 @@ function App() {
         <Route path="/sessions/:id/results" element={<SessionResultsPage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/members/:id/stats" element={<MemberStatsPage />} />
+        <Route path="/leaderboard" element={<WhiskyLeaderboardPage />} />
       </Routes>
 
     </main>
