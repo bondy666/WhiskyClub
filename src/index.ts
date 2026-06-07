@@ -588,11 +588,12 @@ app.get("/api/dashboard", async (_req, res) => {
   try {
     const pool = await poolPromise;
 
-    const result = await pool.request().query(`
+    const counts = await pool.request().query(`
       SELECT
         (SELECT COUNT(*) FROM TastingSessions) AS SessionCount,
         (SELECT COUNT(*) FROM Whiskies) AS WhiskyCount,
         (SELECT COUNT(*) FROM TastingEntries) AS TastingEntryCount,
+        (SELECT COUNT(*) FROM ClubMembers WHERE IsActive = 1) AS ActiveMemberCount,
         (SELECT AVG(CAST(OverallScore AS FLOAT)) FROM TastingEntries WHERE OverallScore IS NOT NULL) AS AverageOverallScore
     `);
 
@@ -607,9 +608,32 @@ app.get("/api/dashboard", async (_req, res) => {
       ORDER BY AverageScore DESC
     `);
 
+    const mostActiveMember = await pool.request().query(`
+      SELECT TOP 1
+        cm.Name AS MemberName,
+        COUNT(te.Id) AS TastingCount
+      FROM TastingEntries te
+      INNER JOIN ClubMembers cm ON te.ClubMemberId = cm.Id
+      GROUP BY cm.Name
+      ORDER BY TastingCount DESC
+    `);
+
+    const recentSessions = await pool.request().query(`
+      SELECT TOP 5
+        Id,
+        Name,
+        SessionDate,
+        Theme,
+        Status
+      FROM TastingSessions
+      ORDER BY SessionDate DESC
+    `);
+
     res.json({
-      ...result.recordset[0],
-      TopWhisky: topWhisky.recordset[0] || null
+      ...counts.recordset[0],
+      TopWhisky: topWhisky.recordset[0] || null,
+      MostActiveMember: mostActiveMember.recordset[0] || null,
+      RecentSessions: recentSessions.recordset
     });
   } catch (error: any) {
     res.status(500).json({
