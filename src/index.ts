@@ -991,6 +991,85 @@ app.get("/api/debug/leaderboard", async (_req, res) => {
     FROM TastingEntries
   `);
 
+  app.get("/api/admin/allowed-users", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT Id, Email, IsActive, CreatedAt
+      FROM AllowedUsers
+      ORDER BY Email
+    `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to retrieve allowed users",
+      details: error.message
+    });
+  }
+});
+
+app.post("/api/admin/allowed-users", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "email is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Email", sql.NVarChar(255), email.toLowerCase())
+      .query(`
+        INSERT INTO AllowedUsers (Email)
+        OUTPUT INSERTED.*
+        VALUES (@Email)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to create allowed user",
+      details: error.message
+    });
+  }
+});
+
+app.put("/api/admin/allowed-users/:id", async (req, res) => {
+  try {
+    const allowedUserId = Number(req.params.id);
+    const { email, isActive } = req.body;
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, allowedUserId)
+      .input("Email", sql.NVarChar(255), email.toLowerCase())
+      .input("IsActive", sql.Bit, isActive)
+      .query(`
+        UPDATE AllowedUsers
+        SET
+          Email = @Email,
+          IsActive = @IsActive
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Allowed user not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to update allowed user",
+      details: error.message
+    });
+  }
+});
+
   res.json(result.recordset);
 });
 
