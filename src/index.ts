@@ -879,7 +879,71 @@ app.get("/api/members/:id/stats", async (req, res) => {
   }
 });
 
-// all /api routes above here
+app.get("/api/sessions/:id/results", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const pool = await poolPromise;
+
+    const rankings = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .query(`
+        SELECT
+          w.Id AS WhiskyId,
+          w.Name AS WhiskyName,
+          w.ImageUrl,
+          COUNT(te.Id) AS EntryCount,
+          AVG(CAST(te.NoseScore AS FLOAT)) AS AverageNoseScore,
+          AVG(CAST(te.PalateScore AS FLOAT)) AS AveragePalateScore,
+          AVG(CAST(te.FinishScore AS FLOAT)) AS AverageFinishScore,
+          AVG(CAST(te.OverallScore AS FLOAT)) AS AverageOverallScore
+        FROM TastingEntries te
+        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+        WHERE te.TastingSessionId = @SessionId
+          AND te.OverallScore IS NOT NULL
+        GROUP BY w.Id, w.Name, w.ImageUrl
+        ORDER BY AverageOverallScore DESC
+      `);
+
+    const bestNose = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .query(`
+        SELECT TOP 1
+          w.Name AS WhiskyName,
+          AVG(CAST(te.NoseScore AS FLOAT)) AS AverageScore
+        FROM TastingEntries te
+        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+        WHERE te.TastingSessionId = @SessionId
+          AND te.NoseScore IS NOT NULL
+        GROUP BY w.Name
+        ORDER BY AverageScore DESC
+      `);
+
+    const bestFinish = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .query(`
+        SELECT TOP 1
+          w.Name AS WhiskyName,
+          AVG(CAST(te.FinishScore AS FLOAT)) AS AverageScore
+        FROM TastingEntries te
+        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+        WHERE te.TastingSessionId = @SessionId
+          AND te.FinishScore IS NOT NULL
+        GROUP BY w.Name
+        ORDER BY AverageScore DESC
+      `);
+
+    res.json({
+      Rankings: rankings.recordset,
+      BestNose: bestNose.recordset[0] || null,
+      BestFinish: bestFinish.recordset[0] || null
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to load session results",
+      details: error.message
+    });
+  }
+});// all /api routes above here
 
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
