@@ -96,9 +96,7 @@ type Member = {
   IsActive: boolean;
   CreatedAt: string;
 };
-
-const API_URL =
-  "https://whiskyclub-web-akc8dgc8dtfndugm.ukwest-01.azurewebsites.net";
+const API_URL = "";https://whiskyclub-web-akc8dgc8dtfndugm.ukwest-01.azurewebsites.net";
 
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
