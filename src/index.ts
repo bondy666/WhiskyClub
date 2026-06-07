@@ -742,6 +742,63 @@ app.delete("/api/members/:id", async (req, res) => {
   }
 });
 
+app.get("/api/members/:id/stats", async (req, res) => {
+  try {
+    const memberId = Number(req.params.id);
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("MemberId", sql.Int, memberId)
+      .query(`
+        SELECT
+          cm.Id,
+          cm.Name,
+          cm.Email,
+          cm.IsActive,
+          COUNT(te.Id) AS TastingsSubmitted,
+          AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScoreGiven,
+          MAX(te.OverallScore) AS HighestScoreGiven,
+          MIN(te.OverallScore) AS LowestScoreGiven
+        FROM ClubMembers cm
+        LEFT JOIN TastingEntries te
+          ON cm.Id = te.ClubMemberId
+        WHERE cm.Id = @MemberId
+        GROUP BY
+          cm.Id,
+          cm.Name,
+          cm.Email,
+          cm.IsActive
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    const favourite = await pool.request()
+      .input("MemberId", sql.Int, memberId)
+      .query(`
+        SELECT TOP 1
+          w.Name AS WhiskyName,
+          te.OverallScore
+        FROM TastingEntries te
+        INNER JOIN Whiskies w ON te.WhiskyId = w.Id
+        WHERE te.ClubMemberId = @MemberId
+          AND te.OverallScore IS NOT NULL
+        ORDER BY te.OverallScore DESC, te.CreatedAt DESC
+      `);
+
+    res.json({
+      ...result.recordset[0],
+      FavouriteWhisky: favourite.recordset[0] || null
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to retrieve member stats",
+      details: error.message
+    });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
 });
