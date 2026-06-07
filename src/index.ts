@@ -18,6 +18,59 @@ app.use(
 
 app.use(express.json());
 
+async function requireAllowedUser(req: any, res: any, next: any) {
+  try {
+    const principalHeader = req.headers["x-ms-client-principal"];
+
+    if (!principalHeader) {
+      return res.status(401).json({ error: "Not signed in" });
+    }
+
+    const decoded = Buffer.from(principalHeader, "base64").toString("utf8");
+    const principal = JSON.parse(decoded);
+
+    const claims = principal.claims || [];
+
+    const emailClaim =
+      claims.find((c: any) => c.typ === "preferred_username") ||
+      claims.find((c: any) => c.typ === "email") ||
+      claims.find((c: any) => c.typ === "upn");
+
+    const email = emailClaim?.val?.toLowerCase();
+
+    if (!email) {
+      return res.status(403).json({ error: "No email claim found" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Email", sql.NVarChar(255), email)
+      .query(`
+        SELECT Id, Email
+        FROM AllowedUsers
+        WHERE LOWER(Email) = @Email
+          AND IsActive = 1
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(403).json({
+        error: "Access denied",
+        email
+      });
+    }
+
+    req.userEmail = email;
+    next();
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Authorization check failed",
+      details: error.message
+    });
+  }
+}
+
+
 const port = process.env.PORT || 3000;
 
 
@@ -236,6 +289,10 @@ app.get("/api/health", (_req, res) => {
     app: "Whisky Club API"
   });
 });
+
+if (process.env.NODE_ENV === "production") {
+  app.use("/api", requireAllowedUser);
+}
 
 app.get("/api/sessions", async (_req, res) => {
   try {
