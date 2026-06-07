@@ -945,6 +945,42 @@ app.get("/api/sessions/:id/results", async (req, res) => {
   }
 });// all /api routes above here
 
+
+app.get("/api/leaderboard/whiskies", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT
+        w.Id,
+        w.Name,
+        w.Distillery,
+        w.Region,
+        w.ImageUrl,
+        COUNT(te.Id) AS TastingCount,
+        AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScore
+      FROM Whiskies w
+      INNER JOIN TastingEntries te
+        ON w.Id = te.WhiskyId
+      WHERE te.OverallScore IS NOT NULL
+      GROUP BY
+        w.Id,
+        w.Name,
+        w.Distillery,
+        w.Region,
+        w.ImageUrl
+      ORDER BY AverageScore DESC
+    `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to load whisky leaderboard",
+      details: error.message
+    });
+  }
+});
+
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
