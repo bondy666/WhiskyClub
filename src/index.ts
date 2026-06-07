@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { poolPromise, sql } from "./db/sql";
-
+import path from "path";
 const app = express();
 
 app.use(
@@ -17,6 +17,10 @@ app.use(
 );
 
 app.use(express.json());
+
+const clientDistPath = path.join(__dirname, "../client/dist");
+
+app.use(express.static(clientDistPath));
 
 async function requireAllowedUser(req: any, res: any, next: any) {
   try {
@@ -279,8 +283,8 @@ app.delete("/api/sessions/:id", async (req, res) => {
 
 
 
-app.get("/", (_req, res) => {
-  res.send("Whisky Club API is running");
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
 app.get("/api/health", (_req, res) => {

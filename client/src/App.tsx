@@ -40,6 +40,21 @@ type TastingEntry = {
   CreatedAt: string;
 };
 
+type MemberStats = {
+  Id: number;
+  Name: string;
+  Email?: string;
+  IsActive: boolean;
+  TastingsSubmitted: number;
+  AverageScoreGiven?: number;
+  HighestScoreGiven?: number;
+  LowestScoreGiven?: number;
+  FavouriteWhisky?: {
+    WhiskyName: string;
+    OverallScore: number;
+  } | null;
+};
+
 type WhiskyStats = {
   Id: number;
   Name: string;
@@ -55,11 +70,17 @@ type DashboardData = {
   SessionCount: number;
   WhiskyCount: number;
   TastingEntryCount: number;
+  ActiveMemberCount: number;
   AverageOverallScore?: number;
   TopWhisky?: {
     WhiskyName: string;
     AverageScore: number;
   } | null;
+  MostActiveMember?: {
+    MemberName: string;
+    TastingCount: number;
+  } | null;
+  RecentSessions: Session[];
 };
 
 type SessionSummary = {
@@ -1350,24 +1371,29 @@ function DashboardPage() {
     <>
       <h2>Dashboard</h2>
 
-      <div style={{ display: "grid", gap: "1rem" }}>
+      <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>Sessions</strong>
+          <strong>📅 Sessions</strong>
           <p>{dashboard.SessionCount}</p>
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>Whiskies</strong>
+          <strong>🥃 Whiskies</strong>
           <p>{dashboard.WhiskyCount}</p>
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>Tasting Entries</strong>
+          <strong>👥 Active Members</strong>
+          <p>{dashboard.ActiveMemberCount}</p>
+        </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>📝 Tasting Entries</strong>
           <p>{dashboard.TastingEntryCount}</p>
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>Average Overall Score</strong>
+          <strong>⭐ Average Club Score</strong>
           <p>
             {dashboard.AverageOverallScore
               ? Number(dashboard.AverageOverallScore).toFixed(1)
@@ -1376,7 +1402,7 @@ function DashboardPage() {
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>Top Whisky</strong>
+          <strong>🏆 Top Whisky</strong>
           {dashboard.TopWhisky ? (
             <p>
               {dashboard.TopWhisky.WhiskyName} —{" "}
@@ -1386,16 +1412,50 @@ function DashboardPage() {
             <p>-</p>
           )}
         </div>
+
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+          <strong>🔥 Most Active Member</strong>
+          {dashboard.MostActiveMember ? (
+            <p>
+              {dashboard.MostActiveMember.MemberName} —{" "}
+              {dashboard.MostActiveMember.TastingCount} tastings
+            </p>
+          ) : (
+            <p>-</p>
+          )}
+        </div>
       </div>
+
+      <h2>Recent Sessions</h2>
+
+      {dashboard.RecentSessions.map(session => (
+        <div
+          key={session.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>{session.Name}</strong>
+          <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
+          <p>{session.Theme}</p>
+          <small>{session.Status}</small>
+        </div>
+      ))}
     </>
   );
 }
 
 function MembersPage() {
+  const navigate = useNavigate();
+
   const [members, setMembers] = useState<Member[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
+  
 
   const loadMembers = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/members`);
@@ -1499,41 +1559,109 @@ async function toggleMemberStatus(member: Member) {
       <h2>Members</h2>
 
       {members.map(member => (
-  <div
-    key={member.Id}
-    style={{
-      border: "1px solid #ccc",
-      padding: "1rem",
-      marginBottom: "1rem",
-      borderRadius: "8px"
-    }}
-  >
-    <strong>
-      {member.Name}
-      {!member.IsActive && " (Inactive)"}
-    </strong>
-    <p>{member.Email}</p>
+        <div
+          key={member.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>
+            {member.Name}
+            {!member.IsActive && " (Inactive)"}
+          </strong>
 
-    <button
-      type="button"
-      onClick={() => startEditMember(member)}
-    >
-      Edit
-    </button>
+          <p>{member.Email}</p>
 
-    <button
-  type="button"
-  onClick={() => toggleMemberStatus(member)}
-  style={{ marginLeft: "0.5rem" }}
->
-  {member.IsActive ? "Deactivate" : "Reactivate"}
-</button>
-</div>
+          <button
+              type="button"
+              onClick={() => startEditMember(member)}
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              onClick={() => toggleMemberStatus(member)}
+              style={{ marginLeft: "0.5rem" }}
+            >
+              {member.IsActive ? "Deactivate" : "Reactivate"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(`/members/${member.Id}/stats`)}
+              style={{ marginLeft: "0.5rem" }}
+            >
+              View Stats
+          </button>
+        </div>
 ))}
     </>
   );
 }
 
+function MemberStatsPage() {
+  const { id } = useParams();
+  const [stats, setStats] = useState<MemberStats | null>(null);
+
+  const loadMemberStats = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/members/${id}/stats`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load member stats: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setStats(data);
+  }, [id]);
+
+  useEffect(() => {
+    void loadMemberStats();
+  }, [loadMemberStats]);
+
+  if (!stats) {
+    return <p>Loading member stats...</p>;
+  }
+
+  return (
+    <>
+      <h2>👤 Member Stats</h2>
+
+      <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+        <h3>{stats.Name}</h3>
+        <p>{stats.Email || ""}</p>
+        <p>{stats.IsActive ? "🟢 Active" : "⚫ Inactive"}</p>
+      </div>
+
+      <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+        <p><strong>Tastings submitted:</strong> {stats.TastingsSubmitted}</p>
+        <p><strong>Average score given:</strong> {stats.AverageScoreGiven ? Number(stats.AverageScoreGiven).toFixed(1) : "-"}</p>
+        <p><strong>Highest score given:</strong> {stats.HighestScoreGiven ?? "-"}</p>
+        <p><strong>Lowest score given:</strong> {stats.LowestScoreGiven ?? "-"}</p>
+      </div>
+
+      <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+        <h3>Favourite Whisky</h3>
+        {stats.FavouriteWhisky ? (
+          <p>
+            {stats.FavouriteWhisky.WhiskyName} — {Number(stats.FavouriteWhisky.OverallScore).toFixed(1)}
+          </p>
+        ) : (
+          <p>No favourite yet.</p>
+        )}
+      </div>
+
+      <Link to="/members">Back to Members</Link>
+    </>
+  );
+}
 
 
 
@@ -1576,6 +1704,7 @@ function App() {
         <Route path="/sessions/:id" element={<SessionDetailPage />} />
         <Route path="/sessions/:id/results" element={<SessionResultsPage />} />
         <Route path="/members" element={<MembersPage />} />
+        <Route path="/members/:id/stats" element={<MemberStatsPage />} />
       </Routes>
 
     </main>
