@@ -96,7 +96,40 @@ type Member = {
   IsActive: boolean;
   CreatedAt: string;
 };
-const API_URL = "";
+
+const API_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:3000"
+    : "";
+
+const buttonStyle: React.CSSProperties = {
+  padding: "0.5rem 1rem",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 500
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  backgroundColor: "#0d6efd",
+  color: "#ffffff",
+  border: "1px solid #0d6efd"
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  backgroundColor: "#f8f9fa",
+  color: "#212529",
+  border: "1px solid #ccc"
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  backgroundColor: "#dc3545",
+  color: "#ffffff",
+  border: "1px solid #dc3545"
+};
+
 
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -110,12 +143,15 @@ function SessionsPage() {
   const loadSessions = useCallback(async () => {
   const res = await fetch(`${API_URL}/api/sessions`);
 
+
+
   if (!res.ok) {
     const errorText = await res.text();
     alert(`Failed to load sessions: ${res.status} ${errorText}`);
     return;
   }
 
+  
   const data = await res.json();
   console.log("Loaded sessions from API:", data);
   setSessions(data);
@@ -181,6 +217,9 @@ async function deleteSession(id: number) {
 
   if (!confirmed) return;
 
+
+
+  
   const res = await fetch(`${API_URL}/api/sessions/${id}`, {
     method: "DELETE"
   });
@@ -219,56 +258,58 @@ return (
     <h2>{editingId ? "Edit Session" : "Create Session"}</h2>
 
       <form
-        onSubmit={createSession}
-        style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
-      >
-        <input
-          placeholder="Session name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          required
-        />
+                      onSubmit={createSession}
+                      style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
+                    >
+                      <input
+                        placeholder="Session name"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                      />
 
-        <input
-          type="date"
-          value={sessionDate}
-          onChange={e => setSessionDate(e.target.value)}
-          required
-        />
+                      <input
+                        type="date"
+                        value={sessionDate}
+                        onChange={e => setSessionDate(e.target.value)}
+                        required
+                      />
 
-        <input
-  placeholder="Theme"
-  value={theme}
-  onChange={e => setTheme(e.target.value)}
-/>
+                      <input
+                placeholder="Theme"
+                value={theme}
+                onChange={e => setTheme(e.target.value)}
+              />
 
-    <select
-      value={status}
-      onChange={e => setStatus(e.target.value)}
-    >
-      <option value="planned">Planned</option>
-      <option value="active">Active</option>
-      <option value="completed">Completed</option>
-    </select>
+                  <select
+                    value={status}
+                    onChange={e => setStatus(e.target.value)}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                  </select>
 
-    <button type="submit">
+                  <button
+                    type="submit"
+                    style={primaryButtonStyle}
+                  >
+                    {editingId ? "Save Changes" : "Create Session"}
+                  </button>
 
-  {editingId ? "Save Changes" : "Create Session"}
-</button>
-
-{editingId && (
-  <button
-    type="button"
-    onClick={() => {
-      setEditingId(null);
-      setName("");
-      setSessionDate("");
-      setTheme("");
-    }}
-  >
-    Cancel Edit
-  </button>
-)}
+              {editingId && (
+                <button
+                  type="button" style={secondaryButtonStyle}
+                  onClick={() => {
+                    setEditingId(null);
+                    setName("");
+                    setSessionDate("");
+                    setTheme("");
+                  }}
+                >
+                  Cancel Edit
+                </button>
+              )}
       </form>
 
       <h2>Tasting Sessions</h2>
@@ -301,11 +342,7 @@ return (
 <button
   type="button"
   onClick={() => startEditSession(session)}
-  style={{
-    marginTop: "0.75rem",
-    padding: "0.5rem",
-    marginRight: "0.5rem"
-  }}
+  style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
 >
   Edit Session
 </button>
@@ -313,25 +350,18 @@ return (
 
 <Link to={`/sessions/${session.Id}/results`}>
   <button
-    type="button"
-    style={{
-      marginTop: "0.75rem",
-      padding: "0.5rem",
-      marginRight: "0.5rem"
-    }}
-  >
-    View Results
-  </button>
+  type="button"
+  style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+>
+  View Results
+</button>
 </Link>
 
 
 <button
   type="button"
   onClick={() => deleteSession(session.Id)}
-  style={{
-    marginTop: "0.75rem",
-    padding: "0.5rem"
-  }}
+  style={{ ...dangerButtonStyle, marginLeft: "0.5rem" }}
 >
   Delete Session
 </button>
@@ -489,13 +519,6 @@ function startEditWhisky(whisky: Whisky) {
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
       >
 
-       
-
-
-
-
-
-
 
         <label style={{ display: "grid", gap: "0.25rem" }}>
           Whisky name
@@ -567,13 +590,16 @@ function startEditWhisky(whisky: Whisky) {
           />
         </label>        
 
-        <button type="submit">
-  {editingWhiskyId ? "Save Changes" : "Add Whisky"}
-</button>
+        <button
+          type="submit"
+          style={primaryButtonStyle}
+        >
+         {editingWhiskyId ? "Save Changes" : "Add Whisky"}
+        </button>
 
       {editingWhiskyId && (
         <button
-          type="button"
+          type="button" style={secondaryButtonStyle}
           onClick={() => {
             setEditingWhiskyId(null);
             setEditingWhiskyName("");
@@ -643,28 +669,29 @@ function startEditWhisky(whisky: Whisky) {
 
             <br />
 
-            <button
-              type="button"
-              onClick={() => startEditWhisky(whisky)}
-            >
-              Edit
-            </button>
+              <button
+                type="button"
+                onClick={() => startEditWhisky(whisky)}
+                style={secondaryButtonStyle}
+              >
+                Edit
+              </button>
 
-            <button
-              type="button"
-              onClick={() => deleteWhisky(whisky.Id)}
-              style={{ marginLeft: "0.5rem" }}
-            >
-              Delete
-            </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/whiskies/${whisky.Id}/stats`)}
+                style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+              >
+                View Stats
+              </button>
 
-            <button
-              type="button"
-              onClick={() => navigate(`/whiskies/${whisky.Id}/stats`)}
-              style={{ marginLeft: "0.5rem" }}
-            >
-              View Stats
-            </button>
+              <button
+                type="button"
+                onClick={() => deleteWhisky(whisky.Id)}
+                style={{ ...dangerButtonStyle, marginLeft: "0.5rem" }}
+              >
+                Delete
+              </button>
           </div>
         ))}
     </>
@@ -1006,9 +1033,9 @@ return (
         <input type="number" min="0" max="10" step="0.5" placeholder="Finish score" value={finishScore} onChange={e => setFinishScore(e.target.value)} />
         <input type="number" min="0" max="10" step="0.5" placeholder="Overall score" value={overallScore} onChange={e => setOverallScore(e.target.value)} />
 
-        <button type="submit">
-  {editingEntryId ? "Save Changes" : "Save Tasting Entry"}
-        </button>
+<button type="submit" style={primaryButtonStyle}>
+    {editingEntryId ? "Save Changes" : "Save Tasting Entry"}
+</button>
 
         {editingEntryId && (
           <button
@@ -1027,9 +1054,7 @@ return (
               setFinishScore("");
               setOverallScore("");
             }}
-            style={{
-              marginLeft: "0.5rem"
-            }}
+            style={secondaryButtonStyle}
           >
             Cancel Edit
           </button>
@@ -1096,187 +1121,24 @@ return (
           <button
             type="button"
             onClick={() => startEditEntry(entry)}
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.5rem",
-              marginRight: "0.5rem"
-            }}
+            style={secondaryButtonStyle}
           >
             Edit Entry
           </button>
 
-  </>
-)}
-          {!isCompleted && (
-  <>
           <button
             type="button"
             onClick={() => deleteTastingEntry(entry.Id)}
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.5rem"
-            }}
+            style={{ ...dangerButtonStyle, marginLeft: "0.5rem" }}
           >
             Delete Entry
           </button>
-  </>
-)}          
+            </>
+          )}          
         </div>
       ))}
 
       <Link to="/sessions">Back to Sessions</Link>
-    </>
-  );
-}
-
-function SessionResultsPage() {
-  const { id } = useParams();
-  const [summary, setSummary] = useState<SessionSummary[]>([]);
-
-  const loadSessionSummary = useCallback(async () => {
-    if (!id) return;
-
-    const res = await fetch(`${API_URL}/api/sessions/${id}/summary`);
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert(`Failed to load summary: ${res.status} ${errorText}`);
-      return;
-    }
-
-    const data = await res.json();
-    setSummary(data);
-  }, [id]);
-
-  useEffect(() => {
-    void loadSessionSummary();
-  }, [loadSessionSummary]);
-
-
-  function exportResultsPdf() {
-  const doc = new jsPDF();
-
-  doc.setFontSize(18);
-  doc.text("Whisky Club - Session Results", 14, 20);
-
-  doc.setFontSize(11);
-  doc.text(`Session ID: ${id}`, 14, 30);
-  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37);
-
-  autoTable(doc, {
-    startY: 50,
-    head: [["Position", "Whisky", "Average Score", "Entries"]],
-    body: summary.map((item, index) => [
-      String(index + 1),
-      item.WhiskyName,
-      Number(item.AverageScore).toFixed(1),
-      String(item.EntryCount)
-    ])
-  });
-
-  doc.save(`session-${id}-results.pdf`);
-}
-
-
-
-  return (
-    <>
-     <h2>🏆 Session Results</h2><h2>Session Results</h2>
-
-        <div
-          style={{
-            background: "#f5f5f5",
-            border: "1px solid #999",
-            padding: "0.75rem",
-            borderRadius: "8px",
-            marginBottom: "1rem"
-          }}
-        >
-          🔒 This session is completed and is read-only.
-        </div>
-
-
-
-
-     <button
-        type="button"
-        onClick={exportResultsPdf}
-        disabled={summary.length === 0}
-        style={{
-          marginBottom: "1rem",
-          padding: "0.5rem"
-        }}
-      >
-        Export PDF
-      </button>
-      {summary.length > 0 && (
-        <div
-          style={{
-            background: "#fff3cd",
-            border: "1px solid #ffeeba",
-            padding: "1rem",
-            borderRadius: "12px",
-            marginBottom: "1rem"
-          }}
-        >
-          <strong>
-            Winner: {summary[0].WhiskyName}
-          </strong>
-
-          <div>
-            Score: {Number(summary[0].AverageScore).toFixed(1)}
-          </div>
-        </div>
-      )}
-      {summary.length === 0 ? (
-        <p>No scored entries yet.</p>
-      ) : (
-        summary.map((item, index) => (
-          <div
-            key={item.WhiskyName}
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: "12px",
-              padding: "1rem",
-              marginBottom: "1rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              background: "#fff"
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "1.2rem",
-                  fontWeight: "bold"
-                }}
-              >
-                {index === 0 && "🥇 "}
-                {index === 1 && "🥈 "}
-                {index === 2 && "🥉 "}
-                {item.WhiskyName}
-              </div>
-
-              <small>
-                {item.EntryCount} tasting
-                {item.EntryCount === 1 ? "" : "s"}
-              </small>
-            </div>
-
-            <div
-              style={{
-                fontSize: "2rem",
-                fontWeight: "bold"
-              }}
-            >
-              {Number(item.AverageScore).toFixed(1)}
-            </div>
-          </div>
-        ))
-      )}
-
-      <Link to={`/sessions/${id}`}>Back to Session</Link>
     </>
   );
 }
@@ -1549,8 +1411,11 @@ async function toggleMemberStatus(member: Member) {
         <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
         <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
 
-        <button type="submit">
-          {editingMemberId ? "Save Changes" : "Add Member"}
+        <button
+            type="submit"
+            style={primaryButtonStyle}
+          >
+            {editingMemberId ? "Save Changes" : "Add Member"}
         </button>
       </form>
 
@@ -1574,27 +1439,31 @@ async function toggleMemberStatus(member: Member) {
           <p>{member.Email}</p>
 
           <button
-              type="button"
-              onClick={() => startEditMember(member)}
-            >
-              Edit
-            </button>
-
-            <button
-              type="button"
-              onClick={() => toggleMemberStatus(member)}
-              style={{ marginLeft: "0.5rem" }}
-            >
-              {member.IsActive ? "Deactivate" : "Reactivate"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(`/members/${member.Id}/stats`)}
-              style={{ marginLeft: "0.5rem" }}
-            >
-              View Stats
+            type="button"
+            onClick={() => startEditMember(member)}
+            style={secondaryButtonStyle}
+          >
+            Edit
           </button>
+
+          <button
+            type="button"
+            onClick={() => toggleMemberStatus(member)}
+            style={{
+              ...(member.IsActive ? dangerButtonStyle : secondaryButtonStyle),
+              marginLeft: "0.5rem"
+            }}
+          >
+            {member.IsActive ? "Deactivate" : "Reactivate"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/members/${member.Id}/stats`)}
+            style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+          >
+            View Stats
+        </button>
         </div>
 ))}
     </>
@@ -1661,7 +1530,152 @@ function MemberStatsPage() {
   );
 }
 
+function SessionResultsPage() {
+  const { id } = useParams();
+  const [results, setResults] = useState<any>(null);
 
+  const loadResults = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/sessions/${id}/results`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load results: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setResults(data);
+  }, [id]);
+
+  useEffect(() => {
+    void loadResults();
+  }, [loadResults]);
+
+  if (!results) {
+    return <p>Loading results...</p>;
+  }
+
+
+function exportResultsPdf() {
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.text("Whisky Club - Session Results", 14, 20);
+
+  doc.setFontSize(11);
+  doc.text(`Session ID: ${id}`, 14, 30);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 37);
+
+  autoTable(doc, {
+    startY: 50,
+    head: [["Position", "Whisky", "Overall", "Nose", "Palate", "Finish", "Entries"]],
+    body: results.Rankings.map((item: any, index: number) => [
+      String(index + 1),
+      item.WhiskyName,
+      Number(item.AverageOverallScore).toFixed(1),
+      Number(item.AverageNoseScore ?? 0).toFixed(1),
+      Number(item.AveragePalateScore ?? 0).toFixed(1),
+      Number(item.AverageFinishScore ?? 0).toFixed(1),
+      String(item.EntryCount)
+    ])
+  });
+
+  doc.save(`session-${id}-results.pdf`);
+}
+
+  return (
+    <>
+      <h2>🏆 Session Results</h2>
+
+      <button
+        type="button"
+        onClick={exportResultsPdf}
+        disabled={!results || results.Rankings.length === 0}
+        style={primaryButtonStyle}
+      >
+        Export PDF
+      </button>
+
+      {results.BestNose && (
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+          <strong>👃 Best Nose</strong>
+          <p>
+            {results.BestNose.WhiskyName} —{" "}
+            {Number(results.BestNose.AverageScore).toFixed(1)}
+          </p>
+        </div>
+      )}
+
+      {results.BestFinish && (
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+          <strong>🏁 Best Finish</strong>
+          <p>
+            {results.BestFinish.WhiskyName} —{" "}
+            {Number(results.BestFinish.AverageScore).toFixed(1)}
+          </p>
+        </div>
+      )}
+
+      <h3>Full Ranking</h3>
+
+      {results.Rankings.length === 0 ? (
+        <p>No scored entries yet.</p>
+      ) : (
+        results.Rankings.map((item: any, index: number) => (
+          <div
+            key={item.WhiskyId}
+            style={{
+              border: "1px solid #ccc",
+              padding: "1rem",
+              marginBottom: "1rem",
+              borderRadius: "8px",
+              display: "flex",
+              gap: "1rem",
+              alignItems: "center"
+            }}
+          >
+            {item.ImageUrl && (
+              <img
+                src={item.ImageUrl}
+                alt={item.WhiskyName}
+                style={{
+                  width: "70px",
+                  height: "90px",
+                  objectFit: "cover",
+                  borderRadius: "8px"
+                }}
+              />
+            )}
+
+            <div style={{ flex: 1 }}>
+              <strong>
+                {index === 0 && "🥇 "}
+                {index === 1 && "🥈 "}
+                {index === 2 && "🥉 "}
+                {item.WhiskyName}
+              </strong>
+
+              <p>Entries: {item.EntryCount}</p>
+              <small>
+                Nose {Number(item.AverageNoseScore ?? 0).toFixed(1)} ·{" "}
+                Palate {Number(item.AveragePalateScore ?? 0).toFixed(1)} ·{" "}
+                Finish {Number(item.AverageFinishScore ?? 0).toFixed(1)}
+              </small>
+            </div>
+
+            <div style={{ fontSize: "1.8rem", fontWeight: "bold" }}>
+              {Number(item.AverageOverallScore).toFixed(1)}
+            </div>
+          </div>
+        ))
+      )}
+
+      <Link to={`/sessions/${id}`}>Back to Session</Link>
+    </>
+  );
+}
 
 function App() {
   return (
@@ -1676,23 +1690,63 @@ function App() {
       <h1>Whisky Club</h1>
 
       <nav
-        style={{
-          position: "sticky",
-          bottom: 0,
-          background: "white",
-          borderTop: "1px solid #ccc",
-          padding: "0.75rem",
-          display: "flex",
-          justifyContent: "space-around",
-          marginBottom: "1rem",
-          zIndex: 10
-        }}
-      >
-        <Link to="/">Dashboard</Link>
-        <Link to="/sessions">Sessions</Link>
-        <Link to="/whiskies">Whiskies</Link>
-        <Link to="/members">Members</Link>
-      </nav>
+  style={{
+    display: "flex",
+    gap: "0.75rem",
+    marginBottom: "2rem",
+    padding: "1rem",
+    borderBottom: "1px solid #ccc",
+    flexWrap: "wrap"
+  }}
+>
+  <Link
+    to="/"
+    style={{
+      padding: "0.5rem 1rem",
+      border: "1px solid #ccc",
+      borderRadius: "8px",
+      textDecoration: "none"
+    }}
+  >
+    🏠 Dashboard
+  </Link>
+
+  <Link
+    to="/sessions"
+    style={{
+      padding: "0.5rem 1rem",
+      border: "1px solid #ccc",
+      borderRadius: "8px",
+      textDecoration: "none"
+    }}
+  >
+    📅 Sessions
+  </Link>
+
+  <Link
+    to="/whiskies"
+    style={{
+      padding: "0.5rem 1rem",
+      border: "1px solid #ccc",
+      borderRadius: "8px",
+      textDecoration: "none"
+    }}
+  >
+    🥃 Whiskies
+  </Link>
+
+  <Link
+    to="/members"
+    style={{
+      padding: "0.5rem 1rem",
+      border: "1px solid #ccc",
+      borderRadius: "8px",
+      textDecoration: "none"
+    }}
+  >
+    👥 Members
+  </Link>
+</nav>
 
       <Routes>
         <Route path="/" element={<DashboardPage />} />
