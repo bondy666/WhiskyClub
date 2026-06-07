@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import { poolPromise, sql } from "./db/sql";
 import path from "path";
+import multer from "multer";
+import { BlobServiceClient } from "@azure/storage-blob";
 const app = express();
 
 app.use(
@@ -76,7 +78,13 @@ async function requireAllowedUser(req: any, res: any, next: any) {
 
 
 const port = process.env.PORT || 3000;
+const upload = multer({
+  storage: multer.memoryStorage()
+  });
 
+  const storageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  const storageContainerName =
+    process.env.AZURE_STORAGE_CONTAINER_NAME || "whisky-images";
 
 app.post("/api/tasting-entries", async (req, res) => {
   try {
@@ -567,6 +575,7 @@ app.get("/api/whiskies/:id/stats", async (req, res) => {
       .query(`
         SELECT
           w.Id,
+          w.ImageUrl,
           w.Name,
           w.Distillery,
           w.Region,
@@ -580,6 +589,7 @@ app.get("/api/whiskies/:id/stats", async (req, res) => {
         WHERE w.Id = @WhiskyId
         GROUP BY
           w.Id,
+          w.ImageUrl,
           w.Name,
           w.Distillery,
           w.Region
@@ -991,12 +1001,15 @@ app.get("/api/debug/leaderboard", async (_req, res) => {
     FROM TastingEntries
   `);
 
-  app.get("/api/admin/allowed-users", async (_req, res) => {
+  res.json(result.recordset);
+});
+
+app.get("/api/admin/allowed-users", async (_req, res) => {
   try {
     const pool = await poolPromise;
 
     const result = await pool.request().query(`
-      SELECT Id, Email, IsActive, CreatedAt
+      SELECT Id, Email, IsActive, IsAdmin, CreatedAt
       FROM AllowedUsers
       ORDER BY Email
     `);
@@ -1015,10 +1028,26 @@ app.post("/api/admin/allowed-users", async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ error: "email is required" });
+      return res.status(400).json({
+        error: "email is required"
+      });
     }
 
     const pool = await poolPromise;
+
+    const existingUser = await pool.request()
+      .input("Email", sql.NVarChar(255), email.toLowerCase())
+      .query(`
+        SELECT TOP 1 Id
+        FROM AllowedUsers
+        WHERE LOWER(Email) = LOWER(@Email)
+      `);
+
+    if (existingUser.recordset.length > 0) {
+      return res.status(409).json({
+        error: "User already exists"
+      });
+    }
 
     const result = await pool.request()
       .input("Email", sql.NVarChar(255), email.toLowerCase())
@@ -1040,7 +1069,7 @@ app.post("/api/admin/allowed-users", async (req, res) => {
 app.put("/api/admin/allowed-users/:id", async (req, res) => {
   try {
     const allowedUserId = Number(req.params.id);
-    const { email, isActive } = req.body;
+    const { email, isActive, isAdmin } = req.body;
 
     const pool = await poolPromise;
 
@@ -1048,15 +1077,17 @@ app.put("/api/admin/allowed-users/:id", async (req, res) => {
       .input("Id", sql.Int, allowedUserId)
       .input("Email", sql.NVarChar(255), email.toLowerCase())
       .input("IsActive", sql.Bit, isActive)
+      .input("IsAdmin", sql.Bit, isAdmin)
       .query(`
         UPDATE AllowedUsers
-        SET
-          Email = @Email,
-          IsActive = @IsActive
-        OUTPUT INSERTED.*
-        WHERE Id = @Id
+          SET
+            Email = @Email,
+            IsActive = @IsActive,
+            IsAdmin = @IsAdmin
+          OUTPUT INSERTED.*
+          WHERE Id = @Id
       `);
-
+      
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: "Allowed user not found" });
     }
@@ -1067,11 +1098,61 @@ app.put("/api/admin/allowed-users/:id", async (req, res) => {
       error: "Failed to update allowed user",
       details: error.message
     });
-  }
+}
 });
 
-  res.json(result.recordset);
-});
+app.post(
+  "/api/uploads/whisky-image",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!storageConnectionString) {
+        return res.status(500).json({
+          error: "Azure storage connection string is not configured"
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          error: "No image file uploaded"
+        });
+      }
+
+      const blobServiceClient =
+        BlobServiceClient.fromConnectionString(storageConnectionString);
+
+      const containerClient =
+        blobServiceClient.getContainerClient(storageContainerName);
+
+      const fileExtension =
+        req.file.originalname.split(".").pop() || "jpg";
+
+      const blobName =
+        `whiskies/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExtension}`;
+
+      const blockBlobClient =
+        containerClient.getBlockBlobClient(blobName);
+
+      await blockBlobClient.uploadData(req.file.buffer, {
+        blobHTTPHeaders: {
+          blobContentType: req.file.mimetype
+        }
+      });
+
+      res.json({
+        imageUrl: blockBlobClient.url
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: "Failed to upload whisky image",
+        details: error.message
+      });
+    }
+  }
+);
+
 
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));

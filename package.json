@@ -4,24 +4,27 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "build": "npm --prefix client install && npm --prefix client run build && tsc",
-  "start": "node dist/index.js"
-},
+    "build": "npm --prefix client install && npm --prefix client run build && tsc",
+    "start": "node dist/index.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@azure/storage-blob": "^12.32.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mssql": "^12.5.5",
+    "multer": "^2.1.1",
     "path": "^0.12.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/mssql": "^12.3.0",
+    "@types/multer": "^2.1.0",
     "@types/node": "^25.9.2",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",

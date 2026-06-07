@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, Route, Routes, useParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
+
 
 type Session = {
   Id: number;
@@ -60,6 +61,7 @@ type WhiskyStats = {
   Name: string;
   Distillery?: string;
   Region?: string;
+  ImageUrl?: string;
   TimesTasted: number;
   AverageOverallScore?: number;
   BestScore?: number;
@@ -97,10 +99,31 @@ type Member = {
   CreatedAt: string;
 };
 
+type AllowedUser = {
+  Id: number;
+  Email: string;
+  IsActive: boolean;
+  IsAdmin: boolean;
+  CreatedAt: string;
+};
+
+
+
 const API_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:3000"
     : "";
+
+interface WhiskyLeaderboardItem {
+  Id: number;
+  Name: string;
+  Distillery: string | null;
+  Region: string | null;
+  ImageUrl: string | null;
+  TastingCount: number;
+  AverageScore: number;
+}
+
 
 const buttonStyle: React.CSSProperties = {
   padding: "0.5rem 1rem",
@@ -374,7 +397,7 @@ return (
 
 function WhiskiesPage() {
   const navigate = useNavigate();
-
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
@@ -384,6 +407,7 @@ function WhiskiesPage() {
   const [abv, setAbv] = useState("");
   const [price, setPrice] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [editingWhiskyId, setEditingWhiskyId] = useState<number | null>(null);
   const [editingWhiskyName, setEditingWhiskyName] = useState("");
   const loadWhiskies = useCallback(async () => {
@@ -398,6 +422,30 @@ function WhiskiesPage() {
   const data = await res.json();
   setWhiskies(data);
 }, []);
+
+
+async function uploadWhiskyImage(file: File) {
+  setIsUploadingImage(true);
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch(`${API_URL}/api/uploads/whisky-image`, {
+    method: "POST",
+    body: formData
+  });
+
+  setIsUploadingImage(false);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    alert(`Failed to upload image: ${res.status} ${errorText}`);
+    return;
+  }
+
+  const data = await res.json();
+  setImageUrl(data.imageUrl);
+}
 
   async function createWhisky(e: React.FormEvent) {
   e.preventDefault();
@@ -582,13 +630,58 @@ function startEditWhisky(whisky: Whisky) {
 
 
         <label style={{ display: "grid", gap: "0.25rem" }}>
-          Image URL
-          <input
-            placeholder="https://example.com/bottle.jpg"
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-          />
-        </label>        
+  Image URL
+  <input
+    placeholder="https://example.com/bottle.jpg"
+    value={imageUrl}
+    onChange={e => setImageUrl(e.target.value)}
+  />
+</label>
+
+{editingWhiskyId && (
+  <>
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      style={{ display: "none" }}
+      onChange={e => {
+        const file = e.target.files?.[0];
+
+        if (file) {
+          void uploadWhiskyImage(file);
+        }
+      }}
+    />
+
+    <button
+      type="button"
+      style={secondaryButtonStyle}
+      onClick={() => fileInputRef.current?.click()}
+    >
+      Replace Bottle Image
+    </button>
+
+    {isUploadingImage && (
+      <p>⏳ Uploading image...</p>
+    )}
+  </>
+)}
+
+{imageUrl && (
+  <img
+    src={imageUrl}
+    alt="Whisky preview"
+    style={{
+  width: "150px",
+  height: "220px",
+  objectFit: "cover",
+  borderRadius: "8px",
+  border: "1px solid #ccc",
+  marginTop: "0.5rem"
+}}
+  />
+)}
 
         <button
           type="submit"
@@ -1173,7 +1266,20 @@ function WhiskyStatsPage() {
   return (
     <main style={{ padding: "1rem" }}>
       <h1>{stats.Name}</h1>
-
+        {stats.ImageUrl && (
+          <img
+            src={stats.ImageUrl}
+            alt={stats.Name}
+            style={{
+              width: "150px",
+              height: "220px",
+              objectFit: "cover",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              marginBottom: "1rem"
+            }}
+          />
+        )}
       <p><strong>Distillery:</strong> {stats.Distillery}</p>
       <p><strong>Region:</strong> {stats.Region}</p>
 
@@ -1532,16 +1638,24 @@ function MemberStatsPage() {
 
 
 function WhiskyLeaderboardPage() {
-  const [whiskies, setWhiskies] = useState<any[]>([]);
+  const [whiskies, setWhiskies] = useState<WhiskyLeaderboardItem[]>([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/leaderboard/whiskies`)
-      .then(res => res.json())
-      .then(data => {
-        console.log("Leaderboard data:", data);
-        setWhiskies(data);
-});
-  }, []);
+  fetch(`${API_URL}/api/leaderboard/whiskies`)
+    .then(async res => {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      return res.json();
+    })
+    .then((data: WhiskyLeaderboardItem[]) => {
+      setWhiskies(data);
+    })
+    .catch(err => {
+      console.error("Failed to load leaderboard:", err);
+    });
+}, []);
 
 return (
   <>
@@ -1550,30 +1664,52 @@ return (
     <p>Whiskies loaded: {whiskies.length}</p>
 
     {whiskies.map((w, index) => (
-        <div
-          key={w.Id}
-          style={{
-            border: "1px solid #ccc",
-            padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
-          }}
-        >
-          <strong>
-            #{index + 1} {w.Name}
-          </strong>
+  <div
+    key={w.Id}
+    style={{
+      border: "1px solid #ccc",
+      padding: "1rem",
+      marginBottom: "1rem",
+      borderRadius: "8px"
+    }}
+  >
+    {w.ImageUrl && (
+      <img
+        src={w.ImageUrl}
+        alt={w.Name}
+        style={{
+          width: "100px",
+          height: "140px",
+          objectFit: "cover",
+          borderRadius: "8px",
+          marginBottom: "1rem"
+        }}
+      />
+    )}
 
-          <p>{w.Distillery}</p>
+    <div
+      style={{
+        fontSize: "2rem",
+        fontWeight: "bold",
+        marginBottom: "0.5rem"
+      }}
+    >
+      ⭐ {Number(w.AverageScore).toFixed(1)}
+    </div>
 
-          <p>
-            Average Score: {Number(w.AverageScore).toFixed(1)}
-          </p>
+    <strong>
+      {index === 0 && "🥇 "}
+      {index === 1 && "🥈 "}
+      {index === 2 && "🥉 "}
+      {index > 2 && `#${index + 1} `}
+      {w.Name}
+    </strong>
 
-          <p>
-            Tastings: {w.TastingCount}
-          </p>
-        </div>
-      ))}
+    <p>{w.Distillery}</p>
+    <p>{w.Region}</p>
+    <p>📝 {w.TastingCount} tastings</p>
+  </div>
+))}
     </>
   );
 }
@@ -1726,6 +1862,191 @@ function exportResultsPdf() {
   );
 }
 
+function AdminPage() {
+  const [allowedUsers, setAllowedUsers] = useState<AllowedUser[]>([]);
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+
+  const loadAllowedUsers = useCallback(async () => {
+    const res = await fetch(`${API_URL}/api/admin/allowed-users`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load allowed users: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setAllowedUsers(data);
+  }, []);
+
+  async function addAllowedUser(e: React.FormEvent) {
+    e.preventDefault();
+
+    const res = await fetch(`${API_URL}/api/admin/allowed-users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to add allowed user: ${res.status} ${errorText}`);
+      return;
+    }
+
+    setEmail("");
+    await loadAllowedUsers();
+    setMessage("✅ Allowed user added");
+    setTimeout(() => setMessage(""), 3000);
+  }
+
+    async function toggleAdminStatus(user: AllowedUser) {
+      const res = await fetch(`${API_URL}/api/admin/allowed-users/${user.Id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: user.Email,
+          isActive: user.IsActive,
+          isAdmin: !user.IsAdmin
+        })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        alert(`Failed to update admin status: ${res.status} ${errorText}`);
+        return;
+      }
+
+      await loadAllowedUsers();
+
+      setMessage(
+        user.IsAdmin
+          ? "🔓 Admin removed"
+          : "🔐 Admin added"
+      );
+
+      setTimeout(() => setMessage(""), 3000);
+    }
+
+
+  async function toggleAllowedUser(user: AllowedUser) {
+    const res = await fetch(`${API_URL}/api/admin/allowed-users/${user.Id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email: user.Email,
+        isActive: !user.IsActive,
+        isAdmin: user.IsAdmin
+      })
+});
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to update allowed user: ${res.status} ${errorText}`);
+      return;
+    }
+
+    await loadAllowedUsers();
+    setMessage(
+        user.IsActive
+          ? "🚫 User deactivated"
+          : "✅ User reactivated"
+      );
+      setTimeout(() => setMessage(""), 3000);
+        }
+
+  useEffect(() => {
+    void loadAllowedUsers();
+  }, [loadAllowedUsers]);
+
+  return (
+    <>
+      <h2>⚙️ Admin</h2>
+        {message && (
+          <div
+            style={{
+              background: "#e8f5e9",
+              border: "1px solid #4caf50",
+              padding: "0.75rem",
+              borderRadius: "8px",
+              marginBottom: "1rem"
+            }}
+          >
+            {message}
+          </div>
+        )}
+      <h3>Add Allowed User</h3>
+
+      <form
+        onSubmit={addAllowedUser}
+        style={{
+          display: "grid",
+          gap: "0.75rem",
+          marginBottom: "2rem"
+        }}
+      >
+        <input
+          type="email"
+          placeholder="user@example.com"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+
+        <button type="submit" style={primaryButtonStyle}>
+          Add User
+        </button>
+      </form>
+
+      <h3>Allowed Users</h3>
+
+      {allowedUsers.map(user => (
+        <div
+          key={user.Id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>{user.Email}</strong>
+
+          <p>
+            {user.IsActive ? "🟢 Active" : "⚫ Inactive"}
+          </p>
+          <p>
+               {user.IsAdmin ? "🔐 Admin" : "👤 Standard user"}
+         </p>
+
+          <button
+            type="button"
+            onClick={() => toggleAllowedUser(user)}
+            style={user.IsActive ? dangerButtonStyle : secondaryButtonStyle}
+          >
+            {user.IsActive ? "Deactivate" : "Reactivate"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => toggleAdminStatus(user)}
+            style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+          >
+            {user.IsAdmin ? "Remove Admin" : "Make Admin"}
+          </button>
+
+        </div>
+      ))}
+    </>
+  );
+}
+
 function App() {
   return (
     <main
@@ -1753,6 +2074,7 @@ function App() {
   <Link to="/whiskies">🥃 Whiskies</Link>
   <Link to="/members">👥 Members</Link>
   <Link to="/leaderboard">🏆 Leaderboard</Link>
+  <Link to="/admin">⚙️ Admin</Link>
 </nav>
 
       <Routes>
@@ -1765,6 +2087,7 @@ function App() {
         <Route path="/members" element={<MembersPage />} />
         <Route path="/members/:id/stats" element={<MemberStatsPage />} />
         <Route path="/leaderboard" element={<WhiskyLeaderboardPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
 
     </main>
