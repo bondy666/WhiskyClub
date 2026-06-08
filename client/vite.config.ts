@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "The Quaich Society",
-        short_name: "Quaich",
-        description: "Whisky tasting and scoring app",
+        name: "Ealing Whisky Guild",
+        short_name: "EWG",
+        description: "Whisky tasting, scoring and rankings",
         theme_color: "#7b3f00",
         background_color: "#efe7da",
         display: "standalone",

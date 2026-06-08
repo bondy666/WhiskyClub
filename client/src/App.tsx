@@ -2304,6 +2304,17 @@ function App() {
 >
   🥃 Ealing Whisky Guild
 </h1>
+<p
+  style={{
+    textAlign: "center",
+    marginTop: "-0.75rem",
+    marginBottom: "2rem",
+    color: "#6b4c35",
+    fontStyle: "italic"
+  }}
+>
+  Est. 2026
+</p>
 
       <nav
         style={{
