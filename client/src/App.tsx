@@ -5,6 +5,7 @@ import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
 
 
+
 type Session = {
   Id: number;
   Name: string;
@@ -107,6 +108,20 @@ type AllowedUser = {
   CreatedAt: string;
 };
 
+type MemberLeaderboardItem = {
+  MemberId: number;
+  MemberName: string;
+  IsActive: boolean;
+  TastingsSubmitted: number;
+  AverageScoreGiven: number | null;
+  LowestScoreGiven: number | null;
+  HighestScoreGiven: number | null;
+  FavouriteWhisky?: {
+    MemberId: number;
+    WhiskyName: string;
+    AverageScore: number;
+  } | null;
+};
 
 
 const API_URL =
@@ -124,6 +139,10 @@ interface WhiskyLeaderboardItem {
   AverageScore: number;
 }
 
+const headingStyle = {
+  fontFamily: "'Cormorant Garamond', serif",
+  fontWeight: 600
+};
 
 const buttonStyle: React.CSSProperties = {
   padding: "0.5rem 1rem",
@@ -132,11 +151,13 @@ const buttonStyle: React.CSSProperties = {
   fontWeight: 500
 };
 
-const primaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  backgroundColor: "#0d6efd",
-  color: "#ffffff",
-  border: "1px solid #0d6efd"
+const primaryButtonStyle = {
+  background: "#7b3f00",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  padding: "0.75rem 1rem",
+  cursor: "pointer"
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -152,6 +173,7 @@ const dangerButtonStyle: React.CSSProperties = {
   color: "#ffffff",
   border: "1px solid #dc3545"
 };
+
 
 
 function SessionsPage() {
@@ -271,7 +293,8 @@ return (
           border: "1px solid #4caf50",
           padding: "0.75rem",
           borderRadius: "8px",
-          marginBottom: "1rem"
+          marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
         }}
       >
         {message}
@@ -335,7 +358,15 @@ return (
               )}
       </form>
 
-      <h2>Tasting Sessions</h2>
+      <h2
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+        Tasting Sessions
+      </h2>
 
       {sessions.map(session => (
   <div
@@ -542,7 +573,8 @@ function startEditWhisky(whisky: Whisky) {
             border: "1px solid #4caf50",
             padding: "0.75rem",
             borderRadius: "8px",
-            marginBottom: "1rem"
+            marginBottom: "1rem",
+            backgroundColor: "#f8f5ef"
           }}
         >
           {message}
@@ -556,7 +588,8 @@ function startEditWhisky(whisky: Whisky) {
               border: "1px solid #ffeeba",
               padding: "0.75rem",
               borderRadius: "8px",
-              marginBottom: "1rem"
+              marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
             }}
           >
             Editing whisky: <strong>{editingWhiskyName}</strong>
@@ -711,7 +744,7 @@ function startEditWhisky(whisky: Whisky) {
       )}
       </form>
 
-      <h2>Whiskies</h2>
+      <h2 style={headingStyle}>🥃 Whiskies</h2>
 
         {whiskies.map(whisky => (
           <div
@@ -1013,7 +1046,8 @@ return (
           border: "1px solid #999",
           padding: "0.75rem",
           borderRadius: "8px",
-          marginBottom: "1rem"
+          marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
         }}
       >
         🔒 This session is completed and is read-only.
@@ -1026,7 +1060,8 @@ return (
             border: "1px solid #4caf50",
             padding: "0.75rem",
             borderRadius: "8px",
-            marginBottom: "1rem"
+            marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
           }}
         >
           {message}
@@ -1041,7 +1076,8 @@ return (
       border: "1px solid #999",
       padding: "0.75rem",
       borderRadius: "8px",
-      marginBottom: "1rem"
+      marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
     }}
   >
     🔒 This session is completed and is read-only.
@@ -1055,7 +1091,8 @@ return (
             border: "1px solid #ffeeba",
             padding: "0.75rem",
             borderRadius: "8px",
-            marginBottom: "1rem"
+            marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
           }}
         >
           Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
@@ -1276,7 +1313,8 @@ function WhiskyStatsPage() {
               objectFit: "cover",
               borderRadius: "8px",
               border: "1px solid #ccc",
-              marginBottom: "1rem"
+              marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
             }}
           />
         )}
@@ -1335,7 +1373,15 @@ function DashboardPage() {
 
   return (
     <>
-      <h2>Dashboard</h2>
+      <h2
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+        Dashboard Overview
+      </h2>
 
       <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
@@ -1525,7 +1571,7 @@ async function toggleMemberStatus(member: Member) {
         </button>
       </form>
 
-      <h2>Members</h2>
+      <h2 style={headingStyle}>👥 Members</h2>
 
       {members.map(member => (
         <div
@@ -1607,7 +1653,8 @@ function MemberStatsPage() {
     <>
       <h2>👤 Member Stats</h2>
 
-      <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+      <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
+          backgroundColor: "#f8f5ef" }}>
         <h3>{stats.Name}</h3>
         <p>{stats.Email || ""}</p>
         <p>{stats.IsActive ? "🟢 Active" : "⚫ Inactive"}</p>
@@ -1659,7 +1706,9 @@ function WhiskyLeaderboardPage() {
 
 return (
   <>
-    <h2>🏆 Whisky Leaderboard</h2>
+
+
+    <h2 style={headingStyle}>🏆 Whisky Leaderboard</h2>
 
     <p>Whiskies loaded: {whiskies.length}</p>
 
@@ -1670,7 +1719,8 @@ return (
       border: "1px solid #ccc",
       padding: "1rem",
       marginBottom: "1rem",
-      borderRadius: "8px"
+      borderRadius: "8px",
+          backgroundColor: "#f8f5ef"
     }}
   >
     {w.ImageUrl && (
@@ -1682,7 +1732,8 @@ return (
           height: "140px",
           objectFit: "cover",
           borderRadius: "8px",
-          marginBottom: "1rem"
+          marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
         }}
       />
     )}
@@ -1772,7 +1823,15 @@ function exportResultsPdf() {
 
   return (
     <>
-      <h2>🏆 Session Results</h2>
+      <h2
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+        🏆 Session Results
+      </h2>
 
       <button
         type="button"
@@ -1784,7 +1843,8 @@ function exportResultsPdf() {
       </button>
 
       {results.BestNose && (
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
+          backgroundColor: "#f8f5ef" }}>
           <strong>👃 Best Nose</strong>
           <p>
             {results.BestNose.WhiskyName} —{" "}
@@ -1794,7 +1854,8 @@ function exportResultsPdf() {
       )}
 
       {results.BestFinish && (
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
+          backgroundColor: "#f8f5ef" }}>
           <strong>🏁 Best Finish</strong>
           <p>
             {results.BestFinish.WhiskyName} —{" "}
@@ -1967,7 +2028,15 @@ function AdminPage() {
 
   return (
     <>
-      <h2>⚙️ Admin</h2>
+      <h2
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+          Admin
+      </h2>
         {message && (
           <div
             style={{
@@ -2047,35 +2116,195 @@ function AdminPage() {
   );
 }
 
+function MemberLeaderboardPage() {
+  const [rankings, setRankings] = useState<MemberLeaderboardItem[]>([]);
+  const [harshestCritic, setHarshestCritic] = useState<any>(null);
+  const [mostGenerous, setMostGenerous] = useState<any>(null);
+  const [mostActiveMember, setMostActiveMember] = useState<any>(null);
+
+  const loadLeaderboard = useCallback(async () => {
+    const res = await fetch(`${API_URL}/api/leaderboard/members`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load leaderboard: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+
+    setRankings(data.Rankings);
+    setHarshestCritic(data.HarshestCritic);
+    setMostGenerous(data.MostGenerousScorer);
+    setMostActiveMember(data.MostActiveMember);
+  }, []);
+
+  useEffect(() => {
+    void loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  return (
+    <>
+      <h2
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+        🏆 Member Leaderboard
+      </h2>
+
+      {harshestCritic && (
+        <div
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
+          }}
+        >
+          <strong>😬 Harshest Critic</strong>
+          <p>
+            {harshestCritic.MemberName} (
+            {Number(harshestCritic.AverageScoreGiven).toFixed(1)})
+          </p>
+        </div>
+      )}
+
+      {mostGenerous && (
+        <div
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
+          }}
+        >
+          <strong>❤️ Most Generous Scorer</strong>
+          <p>
+            {mostGenerous.MemberName} (
+            {Number(mostGenerous.AverageScoreGiven).toFixed(1)})
+          </p>
+        </div>
+      )}
+
+      {mostActiveMember && (
+        <div
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          backgroundColor: "#f8f5ef"
+          }}
+        >
+          <strong>🏅 Most Active Member</strong>
+          <p>
+            {mostActiveMember.MemberName} —{" "}
+            {mostActiveMember.TastingsSubmitted} tastings
+          </p>
+        </div>
+      )}
+
+      {rankings.map((member, index) => (
+        <div
+          key={member.MemberId}
+          style={{
+            border: "1px solid #ccc",
+            padding: "1rem",
+            marginBottom: "1rem",
+            borderRadius: "8px"
+          }}
+        >
+          <strong>
+            {index === 0 && "🥇 "}
+            {index === 1 && "🥈 "}
+            {index === 2 && "🥉 "}
+            {index > 2 && `#${index + 1} `}
+            {member.MemberName}
+          </strong>
+
+          <p>
+            {member.IsActive ? "🟢 Active" : "⚫ Inactive"}
+          </p>
+
+          <p>🥃 Tastings Submitted: {member.TastingsSubmitted}</p>
+            <p>
+              🥃 Favourite Whisky:{" "}
+              {member.FavouriteWhisky
+                ? `${member.FavouriteWhisky.WhiskyName} (${Number(
+                    member.FavouriteWhisky.AverageScore
+                  ).toFixed(1)})`
+                : "-"}
+            </p>
+          <p>
+            ⭐ Average Score Given:{" "}
+            {member.AverageScoreGiven
+              ? Number(member.AverageScoreGiven).toFixed(1)
+              : "-"}
+          </p>
+
+          <p>
+            📈 Highest Score Given: {member.HighestScoreGiven ?? "-"}
+          </p>
+
+          <p>
+            📉 Lowest Score Given: {member.LowestScoreGiven ?? "-"}
+          </p>
+        </div>
+      ))}
+    </>
+  );
+}
+
+
 function App() {
   return (
     <main
       style={{
         padding: "1rem",
-        fontFamily: "Arial",
+        fontFamily: "'Cormorant Garamond', serif",
         maxWidth: "480px",
         margin: "0 auto"
       }}
     >
-      <h1>Whisky Club</h1>
+
+
+      <h1
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "2.5rem",
+          fontWeight: 600
+        }}
+      >
+        🥃 Whisky Society
+      </h1>
 
       <nav
-  style={{
-    display: "flex",
-    gap: "0.75rem",
-    marginBottom: "2rem",
-    padding: "1rem",
-    borderBottom: "1px solid #ccc",
-    flexWrap: "wrap"
-  }}
->
-  <Link to="/">🏠 Dashboard</Link>
-  <Link to="/sessions">📅 Sessions</Link>
-  <Link to="/whiskies">🥃 Whiskies</Link>
-  <Link to="/members">👥 Members</Link>
-  <Link to="/leaderboard">🏆 Leaderboard</Link>
-  <Link to="/admin">⚙️ Admin</Link>
-</nav>
+        style={{
+          
+          display: "flex",
+          gap: "0.75rem",
+          marginBottom: "2rem",
+          padding: "1rem",
+          borderBottom: "1px solid #ccc",
+          flexWrap: "wrap",
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "1.25rem",
+          letterSpacing: "1px"  
+        }}
+      >
+        <Link to="/">🏠 Dashboard</Link>
+        <Link to="/sessions">📅 Sessions</Link>
+        <Link to="/whiskies">🥃 Whiskies</Link>
+        <Link to="/members">👥 Members</Link>
+        <Link to="/leaderboard">🏆 Whisky Leaderboard</Link>
+        <Link to="/members/leaderboard">👥 Member Leaderboard</Link>
+        <Link to="/admin">⚙️ Admin</Link>
+      </nav>
 
       <Routes>
         <Route path="/" element={<DashboardPage />} />
@@ -2087,6 +2316,7 @@ function App() {
         <Route path="/members" element={<MembersPage />} />
         <Route path="/members/:id/stats" element={<MemberStatsPage />} />
         <Route path="/leaderboard" element={<WhiskyLeaderboardPage />} />
+        <Route path="/members/leaderboard" element={<MemberLeaderboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
 

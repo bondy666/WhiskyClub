@@ -1066,6 +1066,120 @@ app.post("/api/admin/allowed-users", async (req, res) => {
   }
 });
 
+app.get("/api/leaderboard/members", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const rankings = await pool.request().query(`
+      SELECT
+        cm.Id AS MemberId,
+        cm.Name AS MemberName,
+        cm.IsActive,
+        COUNT(te.Id) AS TastingsSubmitted,
+        AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScoreGiven,
+        MIN(te.OverallScore) AS LowestScoreGiven,
+        MAX(te.OverallScore) AS HighestScoreGiven
+      FROM ClubMembers cm
+      LEFT JOIN TastingEntries te
+        ON cm.Id = te.ClubMemberId
+        AND te.OverallScore IS NOT NULL
+      GROUP BY
+        cm.Id,
+        cm.Name,
+        cm.IsActive
+      ORDER BY TastingsSubmitted DESC
+    `);
+
+    const harshestCritic = await pool.request().query(`
+      SELECT TOP 1
+        cm.Id AS MemberId,
+        cm.Name AS MemberName,
+        AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScoreGiven
+      FROM ClubMembers cm
+      INNER JOIN TastingEntries te
+        ON cm.Id = te.ClubMemberId
+      WHERE te.OverallScore IS NOT NULL
+      GROUP BY cm.Id, cm.Name
+      HAVING COUNT(te.Id) > 0
+      ORDER BY AverageScoreGiven ASC
+    `);
+
+    const mostGenerous = await pool.request().query(`
+      SELECT TOP 1
+        cm.Id AS MemberId,
+        cm.Name AS MemberName,
+        AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScoreGiven
+      FROM ClubMembers cm
+      INNER JOIN TastingEntries te
+        ON cm.Id = te.ClubMemberId
+      WHERE te.OverallScore IS NOT NULL
+      GROUP BY cm.Id, cm.Name
+      HAVING COUNT(te.Id) > 0
+      ORDER BY AverageScoreGiven DESC
+    `);
+
+    const mostActive = await pool.request().query(`
+      SELECT TOP 1
+        cm.Id AS MemberId,
+        cm.Name AS MemberName,
+        COUNT(te.Id) AS TastingsSubmitted
+      FROM ClubMembers cm
+      INNER JOIN TastingEntries te
+        ON cm.Id = te.ClubMemberId
+      WHERE te.OverallScore IS NOT NULL
+      GROUP BY cm.Id, cm.Name
+      ORDER BY TastingsSubmitted DESC
+    `);
+
+    const favouriteWhiskies = await pool.request().query(`
+      WITH RankedWhiskies AS (
+        SELECT
+          cm.Id AS MemberId,
+          w.Name AS WhiskyName,
+          AVG(CAST(te.OverallScore AS FLOAT)) AS AverageScore,
+          ROW_NUMBER() OVER (
+            PARTITION BY cm.Id
+            ORDER BY AVG(CAST(te.OverallScore AS FLOAT)) DESC
+          ) AS rn
+        FROM ClubMembers cm
+        INNER JOIN TastingEntries te
+          ON cm.Id = te.ClubMemberId
+        INNER JOIN Whiskies w
+          ON te.WhiskyId = w.Id
+        WHERE te.OverallScore IS NOT NULL
+        GROUP BY cm.Id, w.Name
+      )
+      SELECT
+        MemberId,
+        WhiskyName,
+        AverageScore
+      FROM RankedWhiskies
+      WHERE rn = 1
+    `);
+
+        res.json({
+      Rankings: rankings.recordset.map(member => {
+        const favourite = favouriteWhiskies.recordset.find(
+          whisky => whisky.MemberId === member.MemberId
+        );
+
+        return {
+          ...member,
+          FavouriteWhisky: favourite || null
+        };
+      }),
+      HarshestCritic: harshestCritic.recordset[0] || null,
+      MostGenerousScorer: mostGenerous.recordset[0] || null,
+      MostActiveMember: mostActive.recordset[0] || null
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to load member leaderboard",
+      details: error.message
+    });
+  }
+});
+
 app.put("/api/admin/allowed-users/:id", async (req, res) => {
   try {
     const allowedUserId = Number(req.params.id);
@@ -1152,7 +1266,6 @@ app.post(
     }
   }
 );
-
 
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
