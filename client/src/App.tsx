@@ -141,7 +141,8 @@ interface WhiskyLeaderboardItem {
 
 const headingStyle = {
   fontFamily: "'Cormorant Garamond', serif",
-  fontWeight: 600
+  fontWeight: 600,
+  color: "#4a2c17"
 };
 
 const buttonStyle: React.CSSProperties = {
@@ -302,14 +303,17 @@ return (
           padding: "0.75rem",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
         }}
       >
         {message}
       </div>
     )}
 
-    <h2>{editingId ? "Edit Session" : "Create Session"}</h2>
+         <h1 style={headingStyle}>
+          {editingId ? "Edit Session" : "Create Session"}
+        </h1>
+
 
       <form
                       onSubmit={createSession}
@@ -366,14 +370,8 @@ return (
               )}
       </form>
 
-      <h2
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "2.5rem",
-          fontWeight: 600
-        }}
-      >
-        Tasting Sessions
+      <h2 style={headingStyle}>
+          Tasting Sessions
       </h2>
 
       {sessions.map(session => (
@@ -582,13 +580,19 @@ function startEditWhisky(whisky: Whisky) {
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-            backgroundColor: "#f8f5ef"
+            backgroundColor: "#efe7da"
           }}
         >
           {message}
         </div>
       )}
-      <h2>{editingWhiskyId ? "Edit Whisky" : "Add Whisky"}</h2>
+
+
+        <h1 style={headingStyle}>
+          {editingWhiskyId ? "Edit Whisky" : "Add Whisky"}
+        </h1>
+
+
         {editingWhiskyId && (
           <div
             style={{
@@ -597,7 +601,7 @@ function startEditWhisky(whisky: Whisky) {
               padding: "0.75rem",
               borderRadius: "8px",
               marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
             }}
           >
             Editing whisky: <strong>{editingWhiskyName}</strong>
@@ -814,7 +818,7 @@ function startEditWhisky(whisky: Whisky) {
               <button
                 type="button"
                 onClick={() => navigate(`/whiskies/${whisky.Id}/stats`)}
-                style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+                style={{ ...secondaryButtonStyle, marginLeft: "0.5rem", background: "#ffffff" }}
               >
                 View Stats
               </button>
@@ -1055,7 +1059,7 @@ return (
           padding: "0.75rem",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
         }}
       >
         🔒 This session is completed and is read-only.
@@ -1069,7 +1073,7 @@ return (
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
           }}
         >
           {message}
@@ -1085,7 +1089,7 @@ return (
       padding: "0.75rem",
       borderRadius: "8px",
       marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
     }}
   >
     🔒 This session is completed and is read-only.
@@ -1100,7 +1104,7 @@ return (
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
           }}
         >
           Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
@@ -1322,7 +1326,7 @@ function WhiskyStatsPage() {
               borderRadius: "8px",
               border: "1px solid #ccc",
               marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
             }}
           />
         )}
@@ -1381,15 +1385,8 @@ function DashboardPage() {
 
   return (
     <>
-      <h2
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "2.5rem",
-          fontWeight: 600
-        }}
-      >
-        Dashboard Overview
-      </h2>
+      
+<h1 style={headingStyle}> 🥃 Dashboard </h1>
 
       <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
@@ -1446,7 +1443,9 @@ function DashboardPage() {
         </div>
       </div>
 
-      <h2>Recent Sessions</h2>
+      <h3 style={headingStyle}>
+        Recent Sessions
+      </h3>
 
       {dashboard.RecentSessions.map(session => (
         <div
@@ -1565,7 +1564,9 @@ async function toggleMemberStatus(member: Member) {
 
   return (
     <>
-      <h2>{editingMemberId ? "Edit Member" : "Add Member"}</h2>
+      <h1 style={headingStyle}>
+         {editingMemberId ? "Edit Member" : "Add Member"}
+      </h1>
 
       <form onSubmit={saveMember} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
         <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
@@ -1578,8 +1579,8 @@ async function toggleMemberStatus(member: Member) {
             {editingMemberId ? "Save Changes" : "Add Member"}
         </button>
       </form>
-
-      <h2 style={headingStyle}>👥 Members</h2>
+      <h2 style={headingStyle}>👤 Member Spotlight</h2>
+     
 
       {members.map(member => (
         <div
@@ -1662,7 +1663,7 @@ function MemberStatsPage() {
       <h2>👤 Member Stats</h2>
 
       <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#f8f5ef" }}>
+          backgroundColor: "#efe7da" }}>
         <h3>{stats.Name}</h3>
         <p>{stats.Email || ""}</p>
         <p>{stats.IsActive ? "🟢 Active" : "⚫ Inactive"}</p>
@@ -1716,7 +1717,7 @@ return (
   <>
 
 
-    <h2 style={headingStyle}>🏆 Whisky Leaderboard</h2>
+    <h1 style={headingStyle}>🏆Leaderboard</h1>
 
     <p>Whiskies loaded: {whiskies.length}</p>
 
@@ -1728,7 +1729,7 @@ return (
       padding: "1rem",
       marginBottom: "1rem",
       borderRadius: "8px",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
     }}
   >
     {w.ImageUrl && (
@@ -1741,7 +1742,7 @@ return (
           objectFit: "cover",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
         }}
       />
     )}
@@ -1852,7 +1853,7 @@ function exportResultsPdf() {
 
       {results.BestNose && (
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#f8f5ef" }}>
+          backgroundColor: "#efe7da" }}>
           <strong>👃 Best Nose</strong>
           <p>
             {results.BestNose.WhiskyName} —{" "}
@@ -1863,7 +1864,7 @@ function exportResultsPdf() {
 
       {results.BestFinish && (
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#f8f5ef" }}>
+          backgroundColor: "#efe7da" }}>
           <strong>🏁 Best Finish</strong>
           <p>
             {results.BestFinish.WhiskyName} —{" "}
@@ -2036,15 +2037,9 @@ function AdminPage() {
 
   return (
     <>
-      <h2
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "2.5rem",
-          fontWeight: 600
-        }}
-      >
-          Admin
-      </h2>
+     <h1 style={headingStyle}>
+        🛠️ Admin Panel
+    </h1>
         {message && (
           <div
             style={{
@@ -2170,7 +2165,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
           }}
         >
           <strong>😬 Harshest Critic</strong>
@@ -2188,7 +2183,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
           }}
         >
           <strong>❤️ Most Generous Scorer</strong>
@@ -2206,7 +2201,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#f8f5ef"
+          backgroundColor: "#efe7da"
           }}
         >
           <strong>🏅 Most Active Member</strong>
@@ -2290,7 +2285,8 @@ function App() {
     <main
       style={{
         padding: "1rem",
-        backgroundColor: "#f8f5ef",
+        backgroundColor: "#efe7da",
+        color: "#2b2118",
         minHeight: "100vh",
         fontFamily: "'Cormorant Garamond', serif",
         maxWidth: "480px",
@@ -2298,15 +2294,16 @@ function App() {
       }}
     >
       <h1
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "2.5rem",
-          fontWeight: 600,
-          textAlign: "center"
-        }}
-      >
-        🥃 Whisky Society
-      </h1>
+  style={{
+    fontFamily: "'Cormorant Garamond', serif",
+    fontSize: "2.5rem",
+    fontWeight: 700,
+    color: "#4a2c17",
+    textAlign: "center"
+  }}
+>
+  🥃 Ealing Whisky Guild
+</h1>
 
       <nav
         style={{
