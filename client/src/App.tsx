@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, Route, Routes, useParams } from "react-router-dom";
+import { Link, useLocation, Route, Routes, useParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
@@ -174,7 +174,15 @@ const dangerButtonStyle: React.CSSProperties = {
   border: "1px solid #dc3545"
 };
 
-
+const navLinkStyle = {
+  textDecoration: "none",
+  color: "#333",
+  fontFamily: "Segoe UI, sans-serif",
+  fontWeight: 600,
+  padding: "0.5rem 1rem",
+  borderRadius: "8px",
+  transition: "0.2s ease"
+};
 
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -2262,22 +2270,39 @@ function MemberLeaderboardPage() {
 
 
 function App() {
+  const location = useLocation();
+
+  const getNavStyle = (path: string) => {
+    const isActive =
+      path === "/"
+        ? location.pathname === "/"
+        : location.pathname.startsWith(path);
+
+    return {
+      ...navLinkStyle,
+      background: isActive ? "#7b3f00" : "#f8f5ef",
+      color: isActive ? "white" : "#333",
+      border: isActive ? "1px solid #7b3f00" : "1px solid #ddd"
+    };
+  };
+
   return (
     <main
       style={{
         padding: "1rem",
+        backgroundColor: "#f8f5ef",
+        minHeight: "100vh",
         fontFamily: "'Cormorant Garamond', serif",
         maxWidth: "480px",
         margin: "0 auto"
       }}
     >
-
-
       <h1
         style={{
           fontFamily: "'Cormorant Garamond', serif",
           fontSize: "2.5rem",
-          fontWeight: 600
+          fontWeight: 600,
+          textAlign: "center"
         }}
       >
         🥃 Whisky Society
@@ -2285,25 +2310,23 @@ function App() {
 
       <nav
         style={{
-          
           display: "flex",
+          flexWrap: "wrap",
           gap: "0.75rem",
           marginBottom: "2rem",
           padding: "1rem",
-          borderBottom: "1px solid #ccc",
-          flexWrap: "wrap",
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "1.25rem",
-          letterSpacing: "1px"  
+          background: "#ffffff",
+          borderRadius: "12px",
+          border: "1px solid #ddd",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
         }}
       >
-        <Link to="/">🏠 Dashboard</Link>
-        <Link to="/sessions">📅 Sessions</Link>
-        <Link to="/whiskies">🥃 Whiskies</Link>
-        <Link to="/members">👥 Members</Link>
-        <Link to="/leaderboard">🏆 Whisky Leaderboard</Link>
-        <Link to="/members/leaderboard">👥 Member Leaderboard</Link>
-        <Link to="/admin">⚙️ Admin</Link>
+        <Link to="/" style={getNavStyle("/")}>Dashboard</Link>
+        <Link to="/sessions" style={getNavStyle("/sessions")}>Sessions</Link>
+        <Link to="/whiskies" style={getNavStyle("/whiskies")}>Whiskies</Link>
+        <Link to="/members" style={getNavStyle("/members")}>Members</Link>
+        <Link to="/leaderboard" style={getNavStyle("/leaderboard")}>Whisky Leaderboard</Link>
+        <Link to="/admin" style={getNavStyle("/admin")}>Admin</Link>
       </nav>
 
       <Routes>
@@ -2319,9 +2342,7 @@ function App() {
         <Route path="/members/leaderboard" element={<MemberLeaderboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
-
     </main>
   );
 }
-
 export default App;
