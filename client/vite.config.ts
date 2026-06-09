@@ -7,7 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
   registerType: "autoUpdate",
-  includeAssets: ["favicon.svg"],
+  devOptions: {
+    enabled: false
+  },
   workbox: {
     cleanupOutdatedCaches: true,
     navigateFallbackDenylist: [
@@ -16,12 +18,12 @@ export default defineConfig({
     ],
     runtimeCaching: [
       {
-        urlPattern: /^.*\/api\/.*$/,
+        urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
         handler: "NetworkOnly",
         method: "GET"
       },
       {
-        urlPattern: /^.*\/.auth\/.*$/,
+        urlPattern: ({ url }) => url.pathname.startsWith("/.auth/"),
         handler: "NetworkOnly",
         method: "GET"
       }
@@ -32,9 +34,10 @@ export default defineConfig({
     short_name: "EWG",
     description: "Whisky tasting, scoring and rankings",
     theme_color: "#7b3f00",
-    background_color: "#efe7da",
+    background_color: "#e4d4bd",
     display: "standalone",
     start_url: "/",
+    scope: "/",
     icons: [
       {
         src: "/pwa-192x192.png",

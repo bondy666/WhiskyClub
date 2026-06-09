@@ -171,7 +171,7 @@ const secondaryButtonStyle: React.CSSProperties = {
 const dangerButtonStyle: React.CSSProperties = {
   ...buttonStyle,
   backgroundColor: "#dc3545",
-  color: "#ffffff",
+  color: "#f6f0e7",
   border: "1px solid #dc3545"
 };
 
@@ -303,7 +303,7 @@ return (
           padding: "0.75rem",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
         }}
       >
         {message}
@@ -580,7 +580,7 @@ function startEditWhisky(whisky: Whisky) {
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-            backgroundColor: "#efe7da"
+            backgroundColor: "#e4d4bd"
           }}
         >
           {message}
@@ -601,7 +601,7 @@ function startEditWhisky(whisky: Whisky) {
               padding: "0.75rem",
               borderRadius: "8px",
               marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
             }}
           >
             Editing whisky: <strong>{editingWhiskyName}</strong>
@@ -818,7 +818,7 @@ function startEditWhisky(whisky: Whisky) {
               <button
                 type="button"
                 onClick={() => navigate(`/whiskies/${whisky.Id}/stats`)}
-                style={{ ...secondaryButtonStyle, marginLeft: "0.5rem", background: "#ffffff" }}
+                style={{ ...secondaryButtonStyle, marginLeft: "0.5rem", background: "#f6f0e7" }}
               >
                 View Stats
               </button>
@@ -1059,7 +1059,7 @@ return (
           padding: "0.75rem",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
         }}
       >
         🔒 This session is completed and is read-only.
@@ -1073,7 +1073,7 @@ return (
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
           }}
         >
           {message}
@@ -1089,7 +1089,7 @@ return (
       padding: "0.75rem",
       borderRadius: "8px",
       marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
     }}
   >
     🔒 This session is completed and is read-only.
@@ -1104,7 +1104,7 @@ return (
             padding: "0.75rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
           }}
         >
           Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
@@ -1326,7 +1326,7 @@ function WhiskyStatsPage() {
               borderRadius: "8px",
               border: "1px solid #ccc",
               marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
             }}
           />
         )}
@@ -1663,7 +1663,7 @@ function MemberStatsPage() {
       <h2>👤 Member Stats</h2>
 
       <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#efe7da" }}>
+          backgroundColor: "#e4d4bd" }}>
         <h3>{stats.Name}</h3>
         <p>{stats.Email || ""}</p>
         <p>{stats.IsActive ? "🟢 Active" : "⚫ Inactive"}</p>
@@ -1729,7 +1729,7 @@ return (
       padding: "1rem",
       marginBottom: "1rem",
       borderRadius: "8px",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
     }}
   >
     {w.ImageUrl && (
@@ -1742,7 +1742,7 @@ return (
           objectFit: "cover",
           borderRadius: "8px",
           marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
         }}
       />
     )}
@@ -1853,7 +1853,7 @@ function exportResultsPdf() {
 
       {results.BestNose && (
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#efe7da" }}>
+          backgroundColor: "#e4d4bd" }}>
           <strong>👃 Best Nose</strong>
           <p>
             {results.BestNose.WhiskyName} —{" "}
@@ -1864,7 +1864,7 @@ function exportResultsPdf() {
 
       {results.BestFinish && (
         <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", marginBottom: "1rem",
-          backgroundColor: "#efe7da" }}>
+          backgroundColor: "#e4d4bd" }}>
           <strong>🏁 Best Finish</strong>
           <p>
             {results.BestFinish.WhiskyName} —{" "}
@@ -2165,7 +2165,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
           }}
         >
           <strong>😬 Harshest Critic</strong>
@@ -2183,7 +2183,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
           }}
         >
           <strong>❤️ Most Generous Scorer</strong>
@@ -2201,7 +2201,7 @@ function MemberLeaderboardPage() {
             padding: "1rem",
             borderRadius: "8px",
             marginBottom: "1rem",
-          backgroundColor: "#efe7da"
+          backgroundColor: "#e4d4bd"
           }}
         >
           <strong>🏅 Most Active Member</strong>
@@ -2285,7 +2285,7 @@ function App() {
     <main
       style={{
         padding: "1rem",
-        backgroundColor: "#efe7da",
+        backgroundColor: "#e4d4bd",
         color: "#2b2118",
         minHeight: "100vh",
         fontFamily: "'Cormorant Garamond', serif",
@@ -2293,17 +2293,46 @@ function App() {
         margin: "0 auto"
       }}
     >
-      <h1
+      
+<div
   style={{
-    fontFamily: "'Cormorant Garamond', serif",
-    fontSize: "2.5rem",
-    fontWeight: 700,
-    color: "#4a2c17",
-    textAlign: "center"
+    textAlign: "center",
+    marginBottom: "1.5rem"
   }}
 >
-  🥃 Ealing Whisky Guild
-</h1>
+  <img
+    src="/pwa-192x192.png"
+    alt="Ealing Whisky Guild"
+    style={{
+      width: "120px",
+      height: "120px",
+      marginBottom: "0.5rem"
+    }}
+  />
+
+  <h1
+    style={{
+      fontFamily: "'Cormorant Garamond', serif",
+      fontSize: "2.5rem",
+      fontWeight: 700,
+      color: "#4a2c17",
+      margin: 0
+    }}
+  >
+    Ealing Whisky Guild
+  </h1>
+
+  <p
+    style={{
+      marginTop: "0.25rem",
+      color: "#6b4c35",
+      fontStyle: "italic"
+    }}
+  >
+    Est. 2026
+  </p>
+</div>
+
 <p
   style={{
     textAlign: "center",
@@ -2323,7 +2352,7 @@ function App() {
           gap: "0.75rem",
           marginBottom: "2rem",
           padding: "1rem",
-          background: "#ffffff",
+          background: "#f6f0e7",
           borderRadius: "12px",
           border: "1px solid #ddd",
           boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
