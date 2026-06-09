@@ -123,6 +123,13 @@ type MemberLeaderboardItem = {
   } | null;
 };
 
+type SessionPhoto = {
+  Id: number;
+  TastingSessionId: number;
+  ImageUrl: string;
+  Caption?: string;
+  CreatedAt: string;
+};
 
 const API_URL =
   window.location.hostname === "localhost"
@@ -165,14 +172,18 @@ const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
   backgroundColor: "#f8f9fa",
   color: "#212529",
-  border: "1px solid #ccc"
+  border: "1px solid #ccc",
+  minWidth: "120px",
+  textAlign: "center"
 };
 
 const dangerButtonStyle: React.CSSProperties = {
   ...buttonStyle,
   backgroundColor: "#dc3545",
   color: "#f6f0e7",
-  border: "1px solid #dc3545"
+  border: "1px solid #dc3545",
+  minWidth: "120px",
+  textAlign: "center"
 };
 
 const navLinkStyle = {
@@ -370,23 +381,55 @@ return (
               )}
       </form>
 
-      <h2 style={headingStyle}>
-          Tasting Sessions
-      </h2>
+ 
+<div
+  style={{
+    fontFamily: "'Cormorant Garamond', serif",
+    fontSize: "1.5rem",
+    fontWeight: 700,
+    color: "#4a2c17",
+    marginBottom: "0.5rem"
+  }}
+>
+  Tasting Sessions
+</div>
+
+<div
+  style={{
+    fontSize: "2.2rem",
+    fontWeight: 700
+  }}
+>
+</div>
+
+
+
+
 
       {sessions.map(session => (
   <div
     key={session.Id}
     style={{
-      border: "1px solid #ccc",
+      border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
       padding: "1rem",
-      marginBottom: "1rem",
-      borderRadius: "8px"
+      marginBottom: "1rem"
     }}
   >
     <Link to={`/sessions/${session.Id}`}>
-      <strong>{session.Name}</strong>
+      <h2 style={headingStyle}>
+        <strong>{session.Name}</strong>
+      </h2>
     </Link>
+
+    <Link to={`/sessions/${session.Id}/photos`}>
+      <button
+        type="button"
+        style={secondaryButtonStyle}
+      >
+        Photos
+      </button>
+    </Link>
+
 
     <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
     <p>{session.Theme}</p>
@@ -399,32 +442,39 @@ return (
 
 <br />
 
-<button
-  type="button"
-  onClick={() => startEditSession(session)}
-  style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "0.75rem",
+    marginTop: "1rem"
+  }}
 >
-  Edit Session
-</button>
-
-
-<Link to={`/sessions/${session.Id}/results`}>
   <button
-  type="button"
-  style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
->
-  View Results
-</button>
-</Link>
+    type="button"
+    onClick={() => startEditSession(session)}
+    style={secondaryButtonStyle}
+  >
+    Edit Session
+  </button>
 
+  <Link to={`/sessions/${session.Id}/results`}>
+    <button
+      type="button"
+      style={secondaryButtonStyle}
+    >
+      Results
+    </button>
+  </Link>
 
-<button
-  type="button"
-  onClick={() => deleteSession(session.Id)}
-  style={{ ...dangerButtonStyle, marginLeft: "0.5rem" }}
->
-  Delete Session
-</button>
+  <button
+    type="button"
+    onClick={() => deleteSession(session.Id)}
+    style={dangerButtonStyle}
+  >
+    Delete Session
+  </button>
+</div>
 
   </div>
 ))}
@@ -721,8 +771,7 @@ function startEditWhisky(whisky: Whisky) {
   width: "150px",
   height: "220px",
   objectFit: "cover",
-  borderRadius: "8px",
-  border: "1px solid #ccc",
+  border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
   marginTop: "0.5rem"
 }}
   />
@@ -756,16 +805,37 @@ function startEditWhisky(whisky: Whisky) {
       )}
       </form>
 
-      <h2 style={headingStyle}>🥃 Whiskies</h2>
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            color: "#4a2c17",
+            marginBottom: "0.5rem"
+          }}
+        >
+          🥃 Whiskies
+        </div>
+
+        <div
+          style={{
+            fontSize: "2.2rem",
+            fontWeight: 700
+          }}
+        >
+        </div>
+
+
+
+
 
         {whiskies.map(whisky => (
           <div
             key={whisky.Id}
             style={{
-              border: "1px solid #ccc",
+              border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
               padding: "1rem",
-              marginBottom: "1rem",
-              borderRadius: "8px"
+              marginBottom: "1rem"
             }}
           >
             <div
@@ -1080,21 +1150,25 @@ return (
         </div>
       )}
       <h2>
-        {editingEntryId ? "Edit Tasting Entry" : "Add Tasting Entry"}
-        {isCompleted && (
-  <div
-    style={{
-      background: "#f5f5f5",
-      border: "1px solid #999",
-      padding: "0.75rem",
-      borderRadius: "8px",
-      marginBottom: "1rem",
-          backgroundColor: "#e4d4bd"
-    }}
-  >
-    🔒 This session is completed and is read-only.
-  </div>
-)}
+
+<button type="submit" style={primaryButtonStyle}>
+    {editingEntryId ? "Edit Tasting Entry" : "Add Tasting Entry"}
+</button>
+
+            {isCompleted && (
+            <div
+              style={{
+                background: "#f5f5f5",
+                border: "1px solid #999",
+                padding: "0.75rem",
+                borderRadius: "8px",
+                marginBottom: "1rem",
+                    backgroundColor: "#e4d4bd"
+              }}
+            >
+              🔒 This session is completed and is read-only.
+            </div>
+          )}
       </h2>
       {editingEntryId && (
         <div
@@ -1204,7 +1278,7 @@ return (
       </form>
 
 )}
-      <h2>Leaderboard</h2>
+      <h2 style={headingStyle}>Leaderboard</h2>
 
       {summary.length === 0 ? (
         <p>No scores yet.</p>
@@ -1213,10 +1287,9 @@ return (
           <div
             key={item.WhiskyName}
             style={{
-              border: "1px solid #ccc",
+              border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
               padding: "1rem",
-              marginBottom: "1rem",
-              borderRadius: "8px"
+              marginBottom: "1rem"
             }}
           >
             <strong>
@@ -1228,16 +1301,15 @@ return (
         ))
       )}
 
-      <h2>Saved Tasting Entries</h2>
+      <h2 style={headingStyle}>Saved Tasting Entries</h2>
 
       {entries.map(entry => (
         <div
           key={entry.Id}
           style={{
-            border: "1px solid #ccc",
+            border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
             padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
+            marginBottom: "1rem"
           }}
         >
           <strong>{entry.WhiskyName}</strong>
@@ -1280,7 +1352,14 @@ return (
         </div>
       ))}
 
-      <Link to="/sessions">Back to Sessions</Link>
+      <Link to="/sessions">
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+        >
+          Back to Sessions
+        </button>
+</Link>
     </>
   );
 }
@@ -1323,8 +1402,7 @@ function WhiskyStatsPage() {
               width: "150px",
               height: "220px",
               objectFit: "cover",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
+              border: "1px solid #070606", background: "#f6f0e7", borderRadius: "12px",
               marginBottom: "1rem",
           backgroundColor: "#e4d4bd"
             }}
@@ -1389,28 +1467,105 @@ function DashboardPage() {
 <h1 style={headingStyle}> 🥃 Dashboard </h1>
 
       <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>📅 Sessions</strong>
-          <p>{dashboard.SessionCount}</p>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",padding: "1rem" }}>
+        
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            color: "#4a2c17",
+            marginBottom: "0.5rem"
+          }}
+        >
+          📅 Sessions
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>🥃 Whiskies</strong>
-          <p>{dashboard.WhiskyCount}</p>
+        <div
+          style={{
+            fontSize: "2.2rem",
+            fontWeight: 700
+          }}
+        >
+          {dashboard.SessionCount}
+        </div>
+        
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>👥 Active Members</strong>
-          <p>{dashboard.ActiveMemberCount}</p>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem" }}>
+            <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            🥃 Whiskies
+          </div>
+
+          <div
+            style={{
+              fontSize: "2.2rem",
+              fontWeight: 700
+            }}
+          >
+            {dashboard.WhiskyCount}
+          </div>
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>📝 Tasting Entries</strong>
-          <p>{dashboard.TastingEntryCount}</p>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem"}}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            👥 Active Members
+          </div>
+
+          <div
+            style={{
+              fontSize: "2.2rem",
+              fontWeight: 700
+            }}
+          >
+            {dashboard.SessionCount}
+          </div>
+
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>⭐ Average Club Score</strong>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem" }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            📝 Tasting Entries
+          </div>
+
+        </div>
+
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem" }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            ⭐ Average Club Score
+          </div>
           <p>
             {dashboard.AverageOverallScore
               ? Number(dashboard.AverageOverallScore).toFixed(1)
@@ -1418,8 +1573,20 @@ function DashboardPage() {
           </p>
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>🏆 Top Whisky</strong>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem" }}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            🏆 Top Whisky
+          </div>
+
+
           {dashboard.TopWhisky ? (
             <p>
               {dashboard.TopWhisky.WhiskyName} —{" "}
@@ -1430,8 +1597,20 @@ function DashboardPage() {
           )}
         </div>
 
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-          <strong>🔥 Most Active Member</strong>
+        <div style={{ border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px", padding: "1rem"}}>
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              color: "#4a2c17",
+              marginBottom: "0.5rem"
+            }}
+          >
+            🔥 Most Active Member
+          </div>
+
+
           {dashboard.MostActiveMember ? (
             <p>
               {dashboard.MostActiveMember.MemberName} —{" "}
@@ -1443,18 +1622,17 @@ function DashboardPage() {
         </div>
       </div>
 
-      <h3 style={headingStyle}>
+      <h2 style={headingStyle}>
         Recent Sessions
-      </h3>
+      </h2>
 
       {dashboard.RecentSessions.map(session => (
         <div
           key={session.Id}
           style={{
-            border: "1px solid #ccc",
+            border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
             padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
+            marginBottom: "1rem"
           }}
         >
           <strong>{session.Name}</strong>
@@ -1579,17 +1757,37 @@ async function toggleMemberStatus(member: Member) {
             {editingMemberId ? "Save Changes" : "Add Member"}
         </button>
       </form>
-      <h2 style={headingStyle}>👤 Member Spotlight</h2>
      
+      <div
+        style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "1.5rem",
+          fontWeight: 700,
+          color: "#4a2c17",
+          marginBottom: "0.5rem"
+        }}
+      >
+        👤 Member Spotlight
+      </div>
+
+      <div
+        style={{
+          fontSize: "2.2rem",
+          fontWeight: 700
+        }}
+      >
+
+      </div>
+
 
       {members.map(member => (
         <div
           key={member.Id}
           style={{
-            border: "1px solid #ccc",
+            border: "1px solid #ccc", background: "#f6f0e7", borderRadius: "12px",
             padding: "1rem",
-            marginBottom: "1rem",
-            borderRadius: "8px"
+            marginBottom: "1rem"
+
           }}
         >
           <strong>
@@ -1927,7 +2125,14 @@ function exportResultsPdf() {
         ))
       )}
 
-      <Link to={`/sessions/${id}`}>Back to Session</Link>
+      <Link to="/sessions">
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+        >
+          Back to Sessions
+        </button>
+      </Link>
     </>
   );
 }
@@ -2075,8 +2280,26 @@ function AdminPage() {
           Add User
         </button>
       </form>
+      <div
+  style={{
+    fontFamily: "'Cormorant Garamond', serif",
+    fontSize: "1.5rem",
+    fontWeight: 700,
+    color: "#4a2c17",
+    marginBottom: "0.5rem"
+  }}
+>
+  Allowed Users
 
-      <h3>Allowed Users</h3>
+</div>
+
+<div
+  style={{
+    fontSize: "2.2rem",
+    fontWeight: 700
+  }}
+>
+</div>
 
       {allowedUsers.map(user => (
         <div
@@ -2263,6 +2486,193 @@ function MemberLeaderboardPage() {
   );
 }
 
+function SessionPhotosPage() {
+  const { id } = useParams();
+  const [photos, setPhotos] = useState<SessionPhoto[]>([]);
+  const [caption, setCaption] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const loadPhotos = useCallback(async () => {
+    if (!id) return;
+
+    const res = await fetch(`${API_URL}/api/sessions/${id}/photos`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to load photos: ${res.status} ${errorText}`);
+      return;
+    }
+
+    const data = await res.json();
+    setPhotos(data);
+  }, [id]);
+
+  async function uploadSessionPhoto(file: File) {
+    if (!id) return;
+
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const uploadRes = await fetch(`${API_URL}/api/uploads/whisky-image`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!uploadRes.ok) {
+      setIsUploading(false);
+      const errorText = await uploadRes.text();
+      alert(`Failed to upload image: ${uploadRes.status} ${errorText}`);
+      return;
+    }
+
+    const uploadData = await uploadRes.json();
+
+    const saveRes = await fetch(`${API_URL}/api/sessions/${id}/photos`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        imageUrl: uploadData.imageUrl,
+        caption
+      })
+    });
+
+    setIsUploading(false);
+
+    if (!saveRes.ok) {
+      const errorText = await saveRes.text();
+      alert(`Failed to save photo: ${saveRes.status} ${errorText}`);
+      return;
+    }
+
+    setCaption("");
+    await loadPhotos();
+  }
+
+  async function deletePhoto(photoId: number) {
+    const confirmed = window.confirm("Delete this photo?");
+    if (!confirmed) return;
+
+    const res = await fetch(`${API_URL}/api/session-photos/${photoId}`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to delete photo: ${res.status} ${errorText}`);
+      return;
+    }
+
+    await loadPhotos();
+  }
+
+  useEffect(() => {
+    void loadPhotos();
+  }, [loadPhotos]);
+
+  return (
+    <>
+      <h1 style={headingStyle}>📷 Session Photos</h1>
+
+      <div
+        style={{
+          border: "1px solid #c7b299",
+          background: "#f6f0e7",
+          padding: "1rem",
+          borderRadius: "12px",
+          marginBottom: "1rem"
+        }}
+      >
+        <input
+          placeholder="Optional caption"
+          value={caption}
+          onChange={e => setCaption(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "0.5rem",
+            marginBottom: "0.75rem"
+          }}
+        />
+
+        <label>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+
+              if (file) {
+                void uploadSessionPhoto(file);
+              }
+            }}
+          />
+
+          <span style={primaryButtonStyle}>
+            Upload Photo
+          </span>
+        </label>
+
+        {isUploading && <p>Uploading photo...</p>}
+      </div>
+
+      {photos.length === 0 ? (
+        <p>No photos yet.</p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "1rem"
+          }}
+        >
+          {photos.map(photo => (
+            <div
+              key={photo.Id}
+              style={{
+                border: "1px solid #c7b299",
+                background: "#f6f0e7",
+                borderRadius: "12px",
+                padding: "0.5rem"
+              }}
+            >
+              <img
+                src={photo.ImageUrl}
+                alt={photo.Caption || "Session photo"}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  objectFit: "cover"
+                }}
+              />
+
+              {photo.Caption && (
+                <p>{photo.Caption}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => deletePhoto(photo.Id)}
+                style={dangerButtonStyle}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <br />
+
+      <Link to={`/sessions/${id}`}>
+        Back to Session
+      </Link>
+    </>
+  );
+}
 
 function App() {
   const location = useLocation();
@@ -2332,19 +2742,6 @@ function App() {
     Est. 2026
   </p>
 </div>
-
-<p
-  style={{
-    textAlign: "center",
-    marginTop: "-0.75rem",
-    marginBottom: "2rem",
-    color: "#6b4c35",
-    fontStyle: "italic"
-  }}
->
-  Est. 2026
-</p>
-
       <nav
         style={{
           display: "flex",
@@ -2378,6 +2775,7 @@ function App() {
         <Route path="/leaderboard" element={<WhiskyLeaderboardPage />} />
         <Route path="/members/leaderboard" element={<MemberLeaderboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/sessions/:id/photos" element={<SessionPhotosPage />} />
       </Routes>
     </main>
   );

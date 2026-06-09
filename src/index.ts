@@ -1267,6 +1267,87 @@ app.post(
   }
 );
 
+app.get("/api/sessions/:id/photos", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .query(`
+        SELECT Id, TastingSessionId, ImageUrl, Caption, CreatedAt
+        FROM SessionPhotos
+        WHERE TastingSessionId = @SessionId
+        ORDER BY CreatedAt DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to load session photos",
+      details: error.message
+    });
+  }
+});
+
+
+app.post("/api/sessions/:id/photos", async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const { imageUrl, caption } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ error: "imageUrl is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("SessionId", sql.Int, sessionId)
+      .input("ImageUrl", sql.NVarChar(1000), imageUrl)
+      .input("Caption", sql.NVarChar(500), caption || null)
+      .query(`
+        INSERT INTO SessionPhotos (TastingSessionId, ImageUrl, Caption)
+        OUTPUT INSERTED.*
+        VALUES (@SessionId, @ImageUrl, @Caption)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to save session photo",
+      details: error.message
+    });
+  }
+});
+
+app.delete("/api/session-photos/:id", async (req, res) => {
+  try {
+    const photoId = Number(req.params.id);
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, photoId)
+      .query(`
+        DELETE FROM SessionPhotos
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to delete session photo",
+      details: error.message
+    });
+  }
+});
+
+
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
