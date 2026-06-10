@@ -196,6 +196,14 @@ const navLinkStyle = {
   transition: "0.2s ease"
 };
 
+function formatDate(date: string | Date) {
+  return new Date(date).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+}
+
 function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [name, setName] = useState("");
@@ -431,7 +439,7 @@ return (
     </Link>
 
 
-    <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
+    <p>{formatDate(session.SessionDate)}</p>
     <p>{session.Theme}</p>
 
 <small>
@@ -1636,7 +1644,7 @@ function DashboardPage() {
           }}
         >
           <strong>{session.Name}</strong>
-          <p>{new Date(session.SessionDate).toLocaleDateString()}</p>
+          <p>{formatDate(session.SessionDate)}</p>
           <p>{session.Theme}</p>
           <small>{session.Status}</small>
         </div>

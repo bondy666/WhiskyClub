@@ -50,21 +50,21 @@ async function requireAllowedUser(req: any, res: any, next: any) {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
-      .input("Email", sql.NVarChar(255), email)
-      .query(`
-        SELECT Id, Email
-        FROM AllowedUsers
-        WHERE LOWER(Email) = @Email
-          AND IsActive = 1
-      `);
+   const result = await pool.request()
+  .input("Email", sql.NVarChar(255), email)
+  .query(`
+    SELECT Id, Email, Name
+    FROM ClubMembers
+    WHERE LOWER(Email) = @Email
+      AND IsActive = 1
+  `);
 
-    if (result.recordset.length === 0) {
-      return res.status(403).json({
-        error: "Access denied",
-        email
-      });
-    }
+if (result.recordset.length === 0) {
+  return res.status(403).json({
+    error: "Access denied - not a club member",
+    email
+  });
+}
 
     req.userEmail = email;
     next();
@@ -296,6 +296,8 @@ app.get("/api/health", (_req, res) => {
     app: "Whisky Club API"
   });
 });
+
+app.use(requireAllowedUser);
 
 if (process.env.NODE_ENV === "production") {
   app.use("/api", requireAllowedUser);
