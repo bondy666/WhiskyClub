@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import { Link, useLocation, Route, Routes, useParams } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -136,6 +136,141 @@ const API_URL =
     ? "http://localhost:3000"
     : "";
 
+type AuthState = {
+  loading: boolean;
+  authenticated: boolean;
+  email: string | null;
+  isAllowed: boolean;
+  isAdmin: boolean;
+};
+
+const defaultAuthState: AuthState = {
+  loading: true,
+  authenticated: false,
+  email: null,
+  isAllowed: false,
+  isAdmin: false
+};
+
+const AuthContext = createContext<AuthState>(defaultAuthState);
+
+function useAuth(): AuthState {
+  return useContext(AuthContext);
+}
+
+// True only when the signed-in account is on the AllowedUsers list and may
+// therefore add or edit data.
+function useCanEdit(): boolean {
+  return useAuth().isAllowed;
+}
+
+function useProvideAuth(): AuthState {
+  const [state, setState] = useState<AuthState>(defaultAuthState);
+
+  useEffect(() => {
+    let active = true;
+
+    fetch(`${API_URL}/api/me`, { credentials: "include" })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!active) return;
+
+        if (!data) {
+          setState({ ...defaultAuthState, loading: false });
+          return;
+        }
+
+        setState({
+          loading: false,
+          authenticated: !!data.authenticated,
+          email: data.email ?? null,
+          isAllowed: !!data.isAllowed,
+          isAdmin: !!data.isAdmin
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setState({ ...defaultAuthState, loading: false });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return state;
+}
+
+function AuthBar() {
+  const auth = useAuth();
+
+  const containerStyle: React.CSSProperties = {
+    marginBottom: "1.5rem",
+    padding: "0.75rem 1rem",
+    background: "#f6f0e7",
+    borderRadius: "12px",
+    border: "1px solid #ddd",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
+    textAlign: "center"
+  };
+
+  const linkButtonStyle: React.CSSProperties = {
+    display: "inline-block",
+    textDecoration: "none",
+    background: "#7b3f00",
+    color: "#fff",
+    border: "1px solid #5f2f00",
+    borderRadius: "10px",
+    padding: "0.5rem 0.9rem",
+    fontWeight: 600
+  };
+
+  if (auth.loading) {
+    return <div style={containerStyle}>Checking sign-in…</div>;
+  }
+
+  if (!auth.authenticated) {
+    return (
+      <div style={containerStyle}>
+        <span>Sign in to add or edit:</span>
+        <a
+          href="/.auth/login/aad?post_login_redirect_uri=/"
+          style={linkButtonStyle}
+        >
+          Sign in with Microsoft
+        </a>
+        <a
+          href="/.auth/login/google?post_login_redirect_uri=/"
+          style={linkButtonStyle}
+        >
+          Sign in with Google
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={containerStyle}>
+      <span>
+        Signed in as <strong>{auth.email}</strong>{" "}
+        {auth.isAllowed
+          ? auth.isAdmin
+            ? "(admin)"
+            : "(approved)"
+          : "(view only — not on allowed users list)"}
+      </span>
+      <a href="/.auth/logout?post_logout_redirect_uri=/" style={linkButtonStyle}>
+        Sign out
+      </a>
+    </div>
+  );
+}
+
 interface WhiskyLeaderboardItem {
   Id: number;
   Name: string;
@@ -195,6 +330,7 @@ function formatDate(date: string | Date) {
 }
 
 function SessionsPage() {
+  const canEdit = useCanEdit();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
@@ -319,6 +455,22 @@ return (
       </div>
     )}
 
+         {!canEdit && (
+          <div
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffeeba",
+              padding: "0.75rem",
+              borderRadius: "8px",
+              marginBottom: "1rem"
+            }}
+          >
+            Sign in with an approved Microsoft or Google account to create or edit sessions.
+          </div>
+        )}
+
+        {canEdit && (
+        <>
          <h1 style={headingStyle}>
           {editingId ? "Edit Session" : "Create Session"}
         </h1>
@@ -378,6 +530,8 @@ return (
                 </button>
               )}
       </form>
+        </>
+        )}
 
  
 <div
@@ -452,6 +606,7 @@ return (
     type="button"
     onClick={() => startEditSession(session)}
     style={secondaryButtonStyle}
+    hidden={!canEdit}
   >
     Edit Session
   </button>
@@ -469,6 +624,7 @@ return (
     type="button"
     onClick={() => deleteSession(session.Id)}
     style={dangerButtonStyle}
+    hidden={!canEdit}
   >
     Delete Session
   </button>
@@ -481,6 +637,7 @@ return (
 }
 
 function WhiskiesPage() {
+  const canEdit = useCanEdit();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [whiskies, setWhiskies] = useState<Whisky[]>([]);
@@ -636,7 +793,21 @@ function startEditWhisky(whisky: Whisky) {
       )}
 
 
-        <h1 style={headingStyle}>
+        {!canEdit && (
+          <div
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffeeba",
+              padding: "0.75rem",
+              borderRadius: "8px",
+              marginBottom: "1rem"
+            }}
+          >
+            Sign in with an approved Microsoft or Google account to add or edit whiskies.
+          </div>
+        )}
+
+        <h1 style={headingStyle} hidden={!canEdit}>
           {editingWhiskyId ? "Edit Whisky" : "Add Whisky"}
         </h1>
 
@@ -657,6 +828,7 @@ function startEditWhisky(whisky: Whisky) {
         )}
       <form
         onSubmit={createWhisky}
+        hidden={!canEdit}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
       >
 
@@ -879,6 +1051,7 @@ function startEditWhisky(whisky: Whisky) {
                 type="button"
                 onClick={() => startEditWhisky(whisky)}
                 style={secondaryButtonStyle}
+                hidden={!canEdit}
               >
                 Edit
               </button>
@@ -895,6 +1068,7 @@ function startEditWhisky(whisky: Whisky) {
                 type="button"
                 onClick={() => deleteWhisky(whisky.Id)}
                 style={{ ...dangerButtonStyle, marginLeft: "0.5rem" }}
+                hidden={!canEdit}
               >
                 Delete
               </button>
@@ -905,6 +1079,7 @@ function startEditWhisky(whisky: Whisky) {
 }
 
 function SessionDetailPage() {
+  const canEdit = useCanEdit();
   const { id } = useParams();
 
   const [session, setSession] = useState<Session | null>(null);
@@ -1182,7 +1357,20 @@ return (
           Editing tasting notes for: <strong>{editingEntryName}</strong>Editing: <strong>{editingEntryName}</strong>
         </div>
       )}
-      {!isCompleted && (
+      {!isCompleted && !canEdit && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          Sign in with an approved Microsoft or Google account to add or edit tasting entries.
+        </div>
+      )}
+      {!isCompleted && canEdit && (
       <form
         onSubmit={createTastingEntry}
         style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}
@@ -1328,7 +1516,7 @@ return (
           <p><strong>Palate score:</strong> {entry.PalateScore ?? "-"} / 10</p>
           <p><strong>Finish score:</strong> {entry.FinishScore ?? "-"} / 10</p>
           <p><strong>Overall score:</strong> {entry.OverallScore ?? "-"} / 10</p>
-          {!isCompleted && (
+          {!isCompleted && canEdit && (
   <>
           <button
             type="button"
@@ -1644,6 +1832,7 @@ function DashboardPage() {
 }
 
 function MembersPage() {
+  const canEdit = useCanEdit();
   const navigate = useNavigate();
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -1740,11 +1929,24 @@ async function toggleMemberStatus(member: Member) {
 
   return (
     <>
-      <h1 style={headingStyle}>
+      {!canEdit && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          Sign in with an approved Microsoft or Google account to add or edit members.
+        </div>
+      )}
+      <h1 style={headingStyle} hidden={!canEdit}>
          {editingMemberId ? "Edit Member" : "Add Member"}
       </h1>
 
-      <form onSubmit={saveMember} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
+      <form onSubmit={saveMember} hidden={!canEdit} style={{ display: "grid", gap: "0.75rem", marginBottom: "2rem" }}>
         <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} required />
         <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
 
@@ -1799,6 +2001,7 @@ async function toggleMemberStatus(member: Member) {
             type="button"
             onClick={() => startEditMember(member)}
             style={secondaryButtonStyle}
+            hidden={!canEdit}
           >
             Edit
           </button>
@@ -1810,6 +2013,7 @@ async function toggleMemberStatus(member: Member) {
               ...(member.IsActive ? dangerButtonStyle : secondaryButtonStyle),
               marginLeft: "0.5rem"
             }}
+            hidden={!canEdit}
           >
             {member.IsActive ? "Deactivate" : "Reactivate"}
           </button>
@@ -2136,6 +2340,7 @@ function exportResultsPdf() {
 }
 
 function AdminPage() {
+  const canEdit = useCanEdit();
   const [allowedUsers, setAllowedUsers] = useState<AllowedUser[]>([]);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -2256,10 +2461,24 @@ function AdminPage() {
             {message}
           </div>
         )}
-      <h3>Add Allowed User</h3>
+      {!canEdit && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          Sign in with an approved Microsoft or Google account to manage allowed users.
+        </div>
+      )}
+      <h3 hidden={!canEdit}>Add Allowed User</h3>
 
       <form
         onSubmit={addAllowedUser}
+        hidden={!canEdit}
         style={{
           display: "grid",
           gap: "0.75rem",
@@ -2322,6 +2541,7 @@ function AdminPage() {
             type="button"
             onClick={() => toggleAllowedUser(user)}
             style={user.IsActive ? dangerButtonStyle : secondaryButtonStyle}
+            hidden={!canEdit}
           >
             {user.IsActive ? "Deactivate" : "Reactivate"}
           </button>
@@ -2330,6 +2550,7 @@ function AdminPage() {
             type="button"
             onClick={() => toggleAdminStatus(user)}
             style={{ ...secondaryButtonStyle, marginLeft: "0.5rem" }}
+            hidden={!canEdit}
           >
             {user.IsAdmin ? "Remove Admin" : "Make Admin"}
           </button>
@@ -2485,6 +2706,7 @@ function MemberLeaderboardPage() {
 }
 
 function SessionPhotosPage() {
+  const canEdit = useCanEdit();
   const { id } = useParams();
   const [photos, setPhotos] = useState<SessionPhoto[]>([]);
   const [caption, setCaption] = useState("");
@@ -2576,6 +2798,7 @@ function SessionPhotosPage() {
       <h1 style={headingStyle}>📷 Session Photos</h1>
 
       <div
+        hidden={!canEdit}
         style={{
           border: "1px solid #c7b299",
           background: "#f6f0e7",
@@ -2655,6 +2878,7 @@ function SessionPhotosPage() {
                 type="button"
                 onClick={() => deletePhoto(photo.Id)}
                 style={dangerButtonStyle}
+                hidden={!canEdit}
               >
                 Delete
               </button>
@@ -2673,6 +2897,16 @@ function SessionPhotosPage() {
 }
 
 function App() {
+  const auth = useProvideAuth();
+
+  return (
+    <AuthContext.Provider value={auth}>
+      <AppShell />
+    </AuthContext.Provider>
+  );
+}
+
+function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -2744,6 +2978,7 @@ function App() {
     Est. 2026
   </p>
 </div>
+      <AuthBar />
       <nav
         aria-label="Primary"
         style={{

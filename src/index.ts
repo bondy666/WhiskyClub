@@ -24,15 +24,22 @@ const clientDistPath = path.join(process.cwd(), "client", "dist");
 
 app.use(express.static(clientDistPath));
 
-async function requireAllowedUser(req: any, res: any, next: any) {
+// Reads the verified identity that Azure App Service Easy Auth injects via the
+// `x-ms-client-principal` header (Microsoft/Google sign-in) and returns the
+// signed-in user's email address, or null when there is no authenticated user.
+function getPrincipalEmail(req: any): string | null {
+  const principalHeader = req.headers["x-ms-client-principal"];
+
+  if (!principalHeader) {
+    return null;
+  }
+
   try {
-    const principalHeader = req.headers["x-ms-client-principal"];
+    const headerValue = Array.isArray(principalHeader)
+      ? principalHeader[0]
+      : principalHeader;
 
-    if (!principalHeader) {
-      return res.status(401).json({ error: "Not signed in" });
-    }
-
-    const decoded = Buffer.from(principalHeader, "base64").toString("utf8");
+    const decoded = Buffer.from(headerValue, "base64").toString("utf8");
     const principal = JSON.parse(decoded);
 
     const claims = principal.claims || [];
@@ -40,33 +47,55 @@ async function requireAllowedUser(req: any, res: any, next: any) {
     const emailClaim =
       claims.find((c: any) => c.typ === "preferred_username") ||
       claims.find((c: any) => c.typ === "email") ||
-      claims.find((c: any) => c.typ === "upn");
+      claims.find((c: any) => c.typ === "emails") ||
+      claims.find((c: any) => c.typ === "upn") ||
+      claims.find(
+        (c: any) =>
+          c.typ ===
+          "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+      );
 
     const email = emailClaim?.val?.toLowerCase();
 
+    return email || null;
+  } catch {
+    return null;
+  }
+}
+
+// Authorisation guard for add/edit/delete: the signed-in account's email must
+// match an active entry in the AllowedUsers allow-list (managed in the Admin
+// panel). Read-only requests are allowed through without this check.
+async function requireAllowedUser(req: any, res: any, next: any) {
+  try {
+    const email = getPrincipalEmail(req);
+
     if (!email) {
-      return res.status(403).json({ error: "No email claim found" });
+      return res.status(401).json({ error: "Not signed in" });
     }
 
     const pool = await poolPromise;
 
-   const result = await pool.request()
-  .input("Email", sql.NVarChar(255), email)
-  .query(`
-    SELECT Id, Email, Name
-    FROM ClubMembers
-    WHERE LOWER(Email) = @Email
-      AND IsActive = 1
-  `);
+    const result = await pool.request()
+      .input("Email", sql.NVarChar(255), email)
+      .query(`
+        SELECT Id, Email, IsAdmin
+        FROM AllowedUsers
+        WHERE LOWER(Email) = @Email
+          AND IsActive = 1
+      `);
 
-if (result.recordset.length === 0) {
-  return res.status(403).json({
-    error: "Access denied - not a club member",
-    email
-  });
-}
+    if (result.recordset.length === 0) {
+      return res.status(403).json({
+        error: "Access denied - email is not on the allowed users list",
+        email
+      });
+    }
 
     req.userEmail = email;
+    req.isAdmin =
+      result.recordset[0].IsAdmin === true ||
+      result.recordset[0].IsAdmin === 1;
     next();
   } catch (error: any) {
     res.status(500).json({
@@ -75,6 +104,19 @@ if (result.recordset.length === 0) {
     });
   }
 }
+
+// Enforce sign-in + allow-list on every mutating API request, regardless of the
+// order in which individual routes are registered below. Safe (read-only)
+// methods are left open so the public can still view sessions, whiskies, etc.
+app.use("/api", (req: any, res: any, next: any) => {
+  const method = req.method.toUpperCase();
+
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return next();
+  }
+
+  return requireAllowedUser(req, res, next);
+});
 
 
 const port = process.env.PORT || 3000;
@@ -297,11 +339,47 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.use(requireAllowedUser);
+// Lets the frontend discover the current sign-in state and whether the account
+// is permitted to add/edit (i.e. present and active in AllowedUsers).
+app.get("/api/me", async (req, res) => {
+  try {
+    const email = getPrincipalEmail(req);
 
-if (process.env.NODE_ENV === "production") {
-  app.use("/api", requireAllowedUser);
-}
+    if (!email) {
+      return res.json({
+        authenticated: false,
+        email: null,
+        isAllowed: false,
+        isAdmin: false
+      });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Email", sql.NVarChar(255), email)
+      .query(`
+        SELECT IsAdmin
+        FROM AllowedUsers
+        WHERE LOWER(Email) = @Email
+          AND IsActive = 1
+      `);
+
+    const row = result.recordset[0];
+
+    res.json({
+      authenticated: true,
+      email,
+      isAllowed: !!row,
+      isAdmin: row ? row.IsAdmin === true || row.IsAdmin === 1 : false
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to resolve identity",
+      details: error.message
+    });
+  }
+});
 
 app.get("/api/sessions", async (_req, res) => {
   try {
