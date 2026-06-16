@@ -186,16 +186,6 @@ const dangerButtonStyle: React.CSSProperties = {
   textAlign: "center"
 };
 
-const navLinkStyle = {
-  textDecoration: "none",
-  color: "#333",
-  fontFamily: "Segoe UI, sans-serif",
-  fontWeight: 600,
-  padding: "0.5rem 1rem",
-  borderRadius: "8px",
-  transition: "0.2s ease"
-};
-
 function formatDate(date: string | Date) {
   return new Date(date).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -2684,20 +2674,24 @@ function SessionPhotosPage() {
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const getNavStyle = (path: string) => {
-    const isActive =
-      path === "/"
+  const menuItems = [
+    { to: "/", label: "Dashboard" },
+    { to: "/sessions", label: "Sessions" },
+    { to: "/whiskies", label: "Whiskies" },
+    { to: "/members", label: "Members" },
+    { to: "/leaderboard", label: "Whisky Leaderboard" },
+    { to: "/members/leaderboard", label: "Member Leaderboard" },
+    { to: "/admin", label: "Admin" }
+  ];
+
+  const activeMenuPath =
+    menuItems.find(item =>
+      item.to === "/"
         ? location.pathname === "/"
-        : location.pathname.startsWith(path);
-
-    return {
-      ...navLinkStyle,
-      background: isActive ? "#7b3f00" : "#f8f5ef",
-      color: isActive ? "white" : "#333",
-      border: isActive ? "1px solid #7b3f00" : "1px solid #ddd"
-    };
-  };
+        : location.pathname.startsWith(item.to)
+    )?.to ?? "/";
 
   return (
     <main
@@ -2751,10 +2745,8 @@ function App() {
   </p>
 </div>
       <nav
+        aria-label="Primary"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.75rem",
           marginBottom: "2rem",
           padding: "1rem",
           background: "#f6f0e7",
@@ -2763,12 +2755,44 @@ function App() {
           boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
         }}
       >
-        <Link to="/" style={getNavStyle("/")}>Dashboard</Link>
-        <Link to="/sessions" style={getNavStyle("/sessions")}>Sessions</Link>
-        <Link to="/whiskies" style={getNavStyle("/whiskies")}>Whiskies</Link>
-        <Link to="/members" style={getNavStyle("/members")}>Members</Link>
-        <Link to="/leaderboard" style={getNavStyle("/leaderboard")}>Whisky Leaderboard</Link>
-        <Link to="/admin" style={getNavStyle("/admin")}>Admin</Link>
+        <label
+          htmlFor="page-menu"
+          style={{
+            display: "block",
+            marginBottom: "0.5rem",
+            color: "#6b4c35",
+            fontWeight: 700,
+            fontSize: "0.95rem",
+            letterSpacing: "0.03em",
+            textTransform: "uppercase"
+          }}
+        >
+          Page Menu
+        </label>
+
+        <select
+          id="page-menu"
+          value={activeMenuPath}
+          onChange={e => navigate(e.target.value)}
+          style={{
+            width: "100%",
+            background: "#fff",
+            color: "#2b2118",
+            border: "1px solid #c7b299",
+            borderRadius: "10px",
+            padding: "0.75rem 1rem",
+            cursor: "pointer",
+            fontWeight: 600,
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "1.1rem"
+          }}
+        >
+          {menuItems.map(item => (
+            <option key={item.to} value={item.to}>
+              {item.label}
+            </option>
+          ))}
+        </select>
       </nav>
 
       <Routes>
