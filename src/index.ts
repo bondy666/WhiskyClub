@@ -63,9 +63,49 @@ function getPrincipalEmail(req: any): string | null {
   }
 }
 
+// Resolves what a signed-in account is allowed to do, keyed off their email.
+// A user may update the site when their email matches an active club member
+// (ClubMembers) or an active entry on the AllowedUsers allow-list. Admin powers
+// come from an active AllowedUsers row flagged IsAdmin.
+async function resolveUserAccess(
+  pool: any,
+  email: string
+): Promise<{ isAllowed: boolean; isAdmin: boolean }> {
+  const normalisedEmail = email.trim().toLowerCase();
+
+  const result = await pool.request()
+    .input("Email", sql.NVarChar(255), normalisedEmail)
+    .query(`
+      SELECT
+        CASE WHEN EXISTS (
+          SELECT 1 FROM ClubMembers
+          WHERE LOWER(Email) = @Email AND IsActive = 1
+        ) THEN 1 ELSE 0 END AS IsMember,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM AllowedUsers
+          WHERE LOWER(Email) = @Email AND IsActive = 1
+        ) THEN 1 ELSE 0 END AS IsAllowedUser,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM AllowedUsers
+          WHERE LOWER(Email) = @Email AND IsActive = 1 AND IsAdmin = 1
+        ) THEN 1 ELSE 0 END AS IsAdmin
+    `);
+
+  const row = result.recordset[0];
+
+  const isMember = row.IsMember === 1;
+  const isAllowedUser = row.IsAllowedUser === 1;
+  const isAdmin = row.IsAdmin === 1;
+
+  return {
+    isAllowed: isMember || isAllowedUser,
+    isAdmin
+  };
+}
+
 // Authorisation guard for add/edit/delete: the signed-in account's email must
-// match an active entry in the AllowedUsers allow-list (managed in the Admin
-// panel). Read-only requests are allowed through without this check.
+// match an active club member (or an active AllowedUsers entry). Read-only
+// requests are allowed through without this check.
 async function requireAllowedUser(req: any, res: any, next: any) {
   try {
     const email = getPrincipalEmail(req);
@@ -76,26 +116,17 @@ async function requireAllowedUser(req: any, res: any, next: any) {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
-      .input("Email", sql.NVarChar(255), email)
-      .query(`
-        SELECT Id, Email, IsAdmin
-        FROM AllowedUsers
-        WHERE LOWER(Email) = @Email
-          AND IsActive = 1
-      `);
+    const access = await resolveUserAccess(pool, email);
 
-    if (result.recordset.length === 0) {
+    if (!access.isAllowed) {
       return res.status(403).json({
-        error: "Access denied - email is not on the allowed users list",
+        error: "Access denied - email is not a registered club member",
         email
       });
     }
 
     req.userEmail = email;
-    req.isAdmin =
-      result.recordset[0].IsAdmin === true ||
-      result.recordset[0].IsAdmin === 1;
+    req.isAdmin = access.isAdmin;
     next();
   } catch (error: any) {
     res.status(500).json({
@@ -394,7 +425,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 // Lets the frontend discover the current sign-in state and whether the account
-// is permitted to add/edit (i.e. present and active in AllowedUsers).
+// is permitted to add/edit (i.e. a registered club member or allowed user).
 app.get("/api/me", async (req, res) => {
   try {
     const email = getPrincipalEmail(req);
@@ -410,22 +441,13 @@ app.get("/api/me", async (req, res) => {
 
     const pool = await poolPromise;
 
-    const result = await pool.request()
-      .input("Email", sql.NVarChar(255), email)
-      .query(`
-        SELECT IsAdmin
-        FROM AllowedUsers
-        WHERE LOWER(Email) = @Email
-          AND IsActive = 1
-      `);
-
-    const row = result.recordset[0];
+    const access = await resolveUserAccess(pool, email);
 
     res.json({
       authenticated: true,
       email,
-      isAllowed: !!row,
-      isAdmin: row ? row.IsAdmin === true || row.IsAdmin === 1 : false
+      isAllowed: access.isAllowed,
+      isAdmin: access.isAdmin
     });
   } catch (error: any) {
     res.status(500).json({
