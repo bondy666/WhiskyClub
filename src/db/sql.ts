@@ -7,7 +7,18 @@ if (!connectionString) {
   throw new Error("SQL_CONNECTION_STRING is not set");
 }
 
-export const poolPromise = new sql.ConnectionPool(connectionString)
+// Build the pool from the connection string, then cap the pool size for the
+// Azure SQL Basic tier (max ~30 concurrent sessions). Keeping max low leaves
+// headroom if more than one app instance ever connects.
+const poolConfig = sql.ConnectionPool.parseConnectionString(connectionString);
+poolConfig.pool = {
+  ...poolConfig.pool,
+  max: 8,
+  min: 1,
+  idleTimeoutMillis: 30000
+};
+
+export const poolPromise = new sql.ConnectionPool(poolConfig)
   .connect()
   .then(pool => {
     console.log("Connected to Azure SQL");
@@ -19,21 +30,3 @@ export const poolPromise = new sql.ConnectionPool(connectionString)
   });
 
 export { sql };
-
-export const sqlConfig = {
-  user: process.env.SQL_USER,
-  password: process.env.SQL_PASSWORD,
-  server: process.env.SQL_SERVER!,
-  database: process.env.SQL_DATABASE!,
-  options: {
-    encrypt: true,
-    trustServerCertificate: false
-  },
-  connectionTimeout: 30000,
-  requestTimeout: 60000,
-  pool: {
-    max: 10,
-    min: 1,
-    idleTimeoutMillis: 30000
-  }
-};

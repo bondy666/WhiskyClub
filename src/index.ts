@@ -105,6 +105,60 @@ async function requireAllowedUser(req: any, res: any, next: any) {
   }
 }
 
+// Ensures the supplied email is present in the AllowedUsers allow-list and is
+// flagged as an administrator. Used to keep every club member in the admin
+// group automatically. No-ops when the member has no email address.
+async function ensureMemberInAdminGroup(
+  pool: any,
+  email: string | null | undefined
+): Promise<void> {
+  const normalisedEmail = email?.trim().toLowerCase();
+
+  if (!normalisedEmail) {
+    return;
+  }
+
+  await pool.request()
+    .input("Email", sql.NVarChar(255), normalisedEmail)
+    .query(`
+      MERGE AllowedUsers AS target
+      USING (SELECT @Email AS Email) AS source
+        ON LOWER(target.Email) = source.Email
+      WHEN MATCHED THEN
+        UPDATE SET IsAdmin = 1, IsActive = 1
+      WHEN NOT MATCHED THEN
+        INSERT (Email, IsActive, IsAdmin)
+        VALUES (source.Email, 1, 1);
+    `);
+}
+
+// On startup, make sure every existing club member that has an email address is
+// part of the admin group. Idempotent, so it is safe to run on every boot.
+async function backfillMembersIntoAdminGroup(): Promise<void> {
+  try {
+    const pool = await poolPromise;
+
+    await pool.request().query(`
+      MERGE AllowedUsers AS target
+      USING (
+        SELECT DISTINCT LOWER(LTRIM(RTRIM(Email))) AS Email
+        FROM ClubMembers
+        WHERE Email IS NOT NULL AND LTRIM(RTRIM(Email)) <> ''
+      ) AS source
+        ON LOWER(target.Email) = source.Email
+      WHEN MATCHED THEN
+        UPDATE SET IsAdmin = 1, IsActive = 1
+      WHEN NOT MATCHED THEN
+        INSERT (Email, IsActive, IsAdmin)
+        VALUES (source.Email, 1, 1);
+    `);
+
+    console.log("Synced existing club members into the admin group");
+  } catch (error: any) {
+    console.error("Failed to sync members into the admin group", error);
+  }
+}
+
 // Enforce sign-in + allow-list on every mutating API request, regardless of the
 // order in which individual routes are registered below. Safe (read-only)
 // methods are left open so the public can still view sessions, whiskies, etc.
@@ -862,6 +916,9 @@ app.post("/api/members", async (req, res) => {
         VALUES (@Name, @Email)
       `);
 
+    // Every club member is automatically part of the admin group.
+    await ensureMemberInAdminGroup(pool, result.recordset[0].Email);
+
     res.status(201).json(result.recordset[0]);
   } catch (error: any) {
     res.status(500).json({
@@ -896,6 +953,9 @@ app.put("/api/members/:id", async (req, res) => {
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: "Member not found" });
     }
+
+    // Keep the member in the admin group whenever they have an email.
+    await ensureMemberInAdminGroup(pool, result.recordset[0].Email);
 
     res.json(result.recordset[0]);
   } catch (error: any) {
@@ -1434,4 +1494,5 @@ app.use((_req, res) => {
 
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
+  backfillMembersIntoAdminGroup();
 });
