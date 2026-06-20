@@ -192,8 +192,8 @@ async function backfillMembersIntoAdminGroup(): Promise<void> {
 
 // Creates the tables that back the tournament voting feature when they are not
 // already present. Runs on startup and is idempotent, so it is safe to call on
-// every boot. Each member may cast a single (changeable) vote per tournament,
-// enforced by the unique constraint on (TournamentId, VoterEmail).
+// every boot. Members vote on individual candidate dates (approval voting), so
+// uniqueness is enforced per option via (TournamentOptionId, VoterEmail).
 async function ensureTournamentTables(): Promise<void> {
   try {
     const pool = await poolPromise;
@@ -240,8 +240,37 @@ async function ensureTournamentTables(): Promise<void> {
             CONSTRAINT DF_TournamentVotes_CreatedAt DEFAULT SYSUTCDATETIME(),
           CONSTRAINT FK_TournamentVotes_Tournaments FOREIGN KEY (TournamentId)
             REFERENCES Tournaments(Id) ON DELETE CASCADE,
-          CONSTRAINT UQ_TournamentVotes_Voter UNIQUE (TournamentId, VoterEmail)
+          CONSTRAINT UQ_TournamentVotes_Option UNIQUE (TournamentOptionId, VoterEmail)
         );
+      END;
+    `);
+
+    // Migrate older installs that allowed only one vote per tournament to the
+    // per-date (approval) model. Drops the old constraint, removes any rows that
+    // would clash on the new key, then adds the per-option unique constraint.
+    await pool.request().query(`
+      IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UQ_TournamentVotes_Voter')
+      BEGIN
+        ALTER TABLE TournamentVotes DROP CONSTRAINT UQ_TournamentVotes_Voter;
+      END;
+
+      IF OBJECT_ID('dbo.TournamentVotes', 'U') IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'UQ_TournamentVotes_Option')
+      BEGIN
+        DELETE v
+        FROM TournamentVotes v
+        JOIN (
+          SELECT Id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY TournamentOptionId, LOWER(VoterEmail)
+                   ORDER BY Id
+                 ) AS rn
+          FROM TournamentVotes
+        ) d ON d.Id = v.Id
+        WHERE d.rn > 1;
+
+        ALTER TABLE TournamentVotes
+          ADD CONSTRAINT UQ_TournamentVotes_Option UNIQUE (TournamentOptionId, VoterEmail);
       END;
     `);
 
@@ -1585,11 +1614,9 @@ app.delete("/api/session-photos/:id", async (req, res) => {
 // first, then by most recently created.
 app.get("/api/tournaments", async (req, res) => {
   try {
-    const email = getPrincipalEmail(req);
     const pool = await poolPromise;
 
     const result = await pool.request()
-      .input("VoterEmail", sql.NVarChar(255), email ? email.toLowerCase() : null)
       .query(`
         SELECT
           t.Id,
@@ -1599,12 +1626,7 @@ app.get("/api/tournaments", async (req, res) => {
           t.CreatedByEmail,
           t.CreatedAt,
           (SELECT COUNT(*) FROM TournamentOptions o WHERE o.TournamentId = t.Id) AS OptionCount,
-          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentId = t.Id) AS VoteCount,
-          (
-            SELECT TOP 1 v.TournamentOptionId
-            FROM TournamentVotes v
-            WHERE v.TournamentId = t.Id AND LOWER(v.VoterEmail) = @VoterEmail
-          ) AS MyVoteOptionId
+          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentId = t.Id) AS VoteCount
         FROM Tournaments t
         ORDER BY
           CASE WHEN t.Status = 'open' THEN 0 ELSE 1 END,
@@ -1621,8 +1643,8 @@ app.get("/api/tournaments", async (req, res) => {
   }
 });
 
-// Full detail for a single tournament: its options (with live vote tallies,
-// most-voted first) plus the option the signed-in caller has voted for.
+// Full detail for a single tournament: its candidate dates (options) with live
+// vote tallies and, for the signed-in caller, whether they have voted for each.
 app.get("/api/tournaments/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -1639,6 +1661,7 @@ app.get("/api/tournaments/:id", async (req, res) => {
 
     const optionsResult = await pool.request()
       .input("TournamentId", sql.Int, id)
+      .input("VoterEmail", sql.NVarChar(255), email ? email.toLowerCase() : null)
       .query(`
         SELECT
           o.Id,
@@ -1648,25 +1671,22 @@ app.get("/api/tournaments/:id", async (req, res) => {
           o.Theme,
           o.Format,
           o.CreatedAt,
-          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentOptionId = o.Id) AS VoteCount
+          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentOptionId = o.Id) AS VoteCount,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM TournamentVotes v
+            WHERE v.TournamentOptionId = o.Id AND LOWER(v.VoterEmail) = @VoterEmail
+          ) THEN 1 ELSE 0 END AS MyVote
         FROM TournamentOptions o
         WHERE o.TournamentId = @TournamentId
-        ORDER BY VoteCount DESC, o.CreatedAt ASC
-      `);
-
-    const myVoteResult = await pool.request()
-      .input("TournamentId", sql.Int, id)
-      .input("VoterEmail", sql.NVarChar(255), email ? email.toLowerCase() : null)
-      .query(`
-        SELECT TOP 1 TournamentOptionId
-        FROM TournamentVotes
-        WHERE TournamentId = @TournamentId AND LOWER(VoterEmail) = @VoterEmail
+        ORDER BY o.ProposedDate ASC, o.CreatedAt ASC
       `);
 
     res.json({
       ...tournamentResult.recordset[0],
-      Options: optionsResult.recordset,
-      MyVoteOptionId: myVoteResult.recordset[0]?.TournamentOptionId ?? null
+      Options: optionsResult.recordset.map((o: any) => ({
+        ...o,
+        MyVote: o.MyVote === 1
+      }))
     });
   } catch (error: any) {
     console.error("Failed to retrieve tournament", error);
@@ -1881,61 +1901,67 @@ app.delete("/api/tournament-options/:id", async (req, res) => {
   }
 });
 
-// Cast or change a vote. Each member has a single vote per tournament, so this
-// upserts on (TournamentId, VoterEmail): voting for a new option moves the vote.
-app.post("/api/tournaments/:id/vote", async (req: any, res) => {
+// Toggle the signed-in member's vote on a single candidate date. Approval
+// voting: a member may vote for any number of dates, and clicking an option
+// they already voted for removes that vote.
+app.post("/api/tournament-options/:id/vote", async (req: any, res) => {
   try {
-    const tournamentId = Number(req.params.id);
-    const { optionId } = req.body;
+    const optionId = Number(req.params.id);
     const voterEmail = (req.userEmail as string).toLowerCase();
-
-    if (!optionId) {
-      return res.status(400).json({ error: "optionId is required" });
-    }
 
     const pool = await poolPromise;
 
-    const tournament = await pool.request()
-      .input("Id", sql.Int, tournamentId)
-      .query(`SELECT Status FROM Tournaments WHERE Id = @Id`);
-
-    if (tournament.recordset.length === 0) {
-      return res.status(404).json({ error: "Tournament not found" });
-    }
-
-    if (tournament.recordset[0].Status !== "open") {
-      return res.status(409).json({ error: "Voting is closed for this tournament" });
-    }
-
     const option = await pool.request()
-      .input("OptionId", sql.Int, Number(optionId))
-      .input("TournamentId", sql.Int, tournamentId)
+      .input("OptionId", sql.Int, optionId)
       .query(`
-        SELECT Id FROM TournamentOptions
-        WHERE Id = @OptionId AND TournamentId = @TournamentId
+        SELECT o.Id, o.TournamentId, t.Status
+        FROM TournamentOptions o
+        JOIN Tournaments t ON t.Id = o.TournamentId
+        WHERE o.Id = @OptionId
       `);
 
     if (option.recordset.length === 0) {
-      return res.status(400).json({ error: "Option does not belong to this tournament" });
+      return res.status(404).json({ error: "Option not found" });
     }
 
-    await pool.request()
-      .input("TournamentId", sql.Int, tournamentId)
-      .input("OptionId", sql.Int, Number(optionId))
+    if (option.recordset[0].Status !== "open") {
+      return res.status(409).json({ error: "Voting is closed for this tournament" });
+    }
+
+    const tournamentId = option.recordset[0].TournamentId;
+
+    const existing = await pool.request()
+      .input("OptionId", sql.Int, optionId)
       .input("VoterEmail", sql.NVarChar(255), voterEmail)
       .query(`
-        MERGE TournamentVotes AS target
-        USING (SELECT @TournamentId AS TournamentId, @VoterEmail AS VoterEmail) AS source
-          ON target.TournamentId = source.TournamentId
-          AND LOWER(target.VoterEmail) = source.VoterEmail
-        WHEN MATCHED THEN
-          UPDATE SET TournamentOptionId = @OptionId, CreatedAt = SYSUTCDATETIME()
-        WHEN NOT MATCHED THEN
-          INSERT (TournamentId, TournamentOptionId, VoterEmail)
-          VALUES (@TournamentId, @OptionId, @VoterEmail);
+        SELECT Id FROM TournamentVotes
+        WHERE TournamentOptionId = @OptionId AND LOWER(VoterEmail) = @VoterEmail
       `);
 
-    res.json({ success: true, optionId: Number(optionId) });
+    let voted: boolean;
+
+    if (existing.recordset.length > 0) {
+      await pool.request()
+        .input("OptionId", sql.Int, optionId)
+        .input("VoterEmail", sql.NVarChar(255), voterEmail)
+        .query(`
+          DELETE FROM TournamentVotes
+          WHERE TournamentOptionId = @OptionId AND LOWER(VoterEmail) = @VoterEmail
+        `);
+      voted = false;
+    } else {
+      await pool.request()
+        .input("TournamentId", sql.Int, tournamentId)
+        .input("OptionId", sql.Int, optionId)
+        .input("VoterEmail", sql.NVarChar(255), voterEmail)
+        .query(`
+          INSERT INTO TournamentVotes (TournamentId, TournamentOptionId, VoterEmail)
+          VALUES (@TournamentId, @OptionId, @VoterEmail)
+        `);
+      voted = true;
+    }
+
+    res.json({ success: true, voted });
   } catch (error: any) {
     console.error("Failed to record vote", error);
     res.status(500).json({
@@ -1945,27 +1971,56 @@ app.post("/api/tournaments/:id/vote", async (req: any, res) => {
   }
 });
 
-// Withdraw the signed-in member's vote from a tournament.
-app.delete("/api/tournaments/:id/vote", async (req: any, res) => {
+// Pick the winning date: keep the most-voted candidate (ties broken by the
+// earliest date), remove all other dates and their votes, and close voting.
+app.post("/api/tournaments/:id/pick-winner", async (req: any, res) => {
   try {
     const tournamentId = Number(req.params.id);
-    const voterEmail = (req.userEmail as string).toLowerCase();
-
     const pool = await poolPromise;
+
+    const tournament = await pool.request()
+      .input("Id", sql.Int, tournamentId)
+      .query(`SELECT Id FROM Tournaments WHERE Id = @Id`);
+
+    if (tournament.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    const winner = await pool.request()
+      .input("TournamentId", sql.Int, tournamentId)
+      .query(`
+        SELECT TOP 1
+          o.Id,
+          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentOptionId = o.Id) AS VoteCount
+        FROM TournamentOptions o
+        WHERE o.TournamentId = @TournamentId
+        ORDER BY VoteCount DESC, o.ProposedDate ASC, o.Id ASC
+      `);
+
+    if (winner.recordset.length === 0) {
+      return res.status(400).json({ error: "Tournament has no dates to choose from" });
+    }
+
+    const winnerId = winner.recordset[0].Id;
 
     await pool.request()
       .input("TournamentId", sql.Int, tournamentId)
-      .input("VoterEmail", sql.NVarChar(255), voterEmail)
+      .input("WinnerId", sql.Int, winnerId)
       .query(`
         DELETE FROM TournamentVotes
-        WHERE TournamentId = @TournamentId AND LOWER(VoterEmail) = @VoterEmail
+        WHERE TournamentId = @TournamentId AND TournamentOptionId <> @WinnerId;
+
+        DELETE FROM TournamentOptions
+        WHERE TournamentId = @TournamentId AND Id <> @WinnerId;
+
+        UPDATE Tournaments SET Status = 'closed' WHERE Id = @TournamentId;
       `);
 
-    res.json({ success: true });
+    res.json({ success: true, winnerOptionId: winnerId });
   } catch (error: any) {
-    console.error("Failed to remove vote", error);
+    console.error("Failed to pick winner", error);
     res.status(500).json({
-      error: "Failed to remove vote",
+      error: "Failed to pick winner",
       details: error.message
     });
   }

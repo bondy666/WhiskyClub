@@ -140,6 +140,7 @@ type TournamentOption = {
   Format?: string | null;
   CreatedAt: string;
   VoteCount: number;
+  MyVote: boolean;
 };
 
 type TournamentListItem = {
@@ -151,7 +152,6 @@ type TournamentListItem = {
   CreatedAt: string;
   OptionCount: number;
   VoteCount: number;
-  MyVoteOptionId: number | null;
 };
 
 type TournamentDetail = {
@@ -162,7 +162,6 @@ type TournamentDetail = {
   CreatedByEmail?: string | null;
   CreatedAt: string;
   Options: TournamentOption[];
-  MyVoteOptionId: number | null;
 };
 
 const API_URL =
@@ -2930,19 +2929,169 @@ function SessionPhotosPage() {
   );
 }
 
-type NewOptionDraft = {
-  title: string;
-  proposedDate: string;
-  theme: string;
-  format: string;
-};
+// ---------------------------------------------------------------------------
+// Tournament voting — calendar helpers
+// ---------------------------------------------------------------------------
 
-const emptyOptionDraft: NewOptionDraft = {
-  title: "",
-  proposedDate: "",
-  theme: "",
-  format: ""
-};
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseDateKey(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatDateKey(key: string): string {
+  return parseDateKey(key).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function formatProposedDate(value?: string | null): string {
+  if (!value) return "";
+  return formatDateKey(value.slice(0, 10));
+}
+
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+const CALENDAR_WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Compact, phone-friendly month picker. Past days are disabled, and tapping a
+// day toggles it in/out of the supplied selection.
+function MonthCalendar({
+  month,
+  selectedKeys,
+  onToggle,
+  onChangeMonth
+}: {
+  month: Date;
+  selectedKeys: string[];
+  onToggle: (key: string) => void;
+  onChangeMonth: (next: Date) => void;
+}) {
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const firstWeekday = (new Date(year, m, 1).getDay() + 6) % 7; // Monday = 0
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, m, d));
+
+  const navButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    background: "#fff",
+    border: "1px solid #c7b299",
+    color: "#4a2c17",
+    padding: "0.3rem 0.7rem"
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #c7b299",
+        borderRadius: "10px",
+        padding: "0.6rem",
+        background: "#fff"
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "0.5rem"
+        }}
+      >
+        <button
+          type="button"
+          style={navButtonStyle}
+          onClick={() => onChangeMonth(new Date(year, m - 1, 1))}
+        >
+          ‹
+        </button>
+        <strong style={{ color: "#4a2c17" }}>
+          {month.toLocaleDateString("en-GB", {
+            month: "long",
+            year: "numeric"
+          })}
+        </strong>
+        <button
+          type="button"
+          style={navButtonStyle}
+          onClick={() => onChangeMonth(new Date(year, m + 1, 1))}
+        >
+          ›
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(7, 1fr)",
+          gap: "4px"
+        }}
+      >
+        {CALENDAR_WEEKDAYS.map(w => (
+          <div
+            key={w}
+            style={{
+              textAlign: "center",
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              color: "#6b4c35"
+            }}
+          >
+            {w}
+          </div>
+        ))}
+
+        {cells.map((date, i) => {
+          if (!date) return <div key={`empty-${i}`} />;
+          const key = toDateKey(date);
+          const isPast = date < today;
+          const isSelected = selectedKeys.includes(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={isPast}
+              onClick={() => onToggle(key)}
+              style={{
+                padding: "0.45rem 0",
+                borderRadius: "8px",
+                border: `1px solid ${isSelected ? "#7b3f00" : "#ddd"}`,
+                background: isSelected
+                  ? "#7b3f00"
+                  : isPast
+                    ? "#f0ece4"
+                    : "#fff",
+                color: isSelected ? "#fff" : isPast ? "#bcae9a" : "#2b2118",
+                cursor: isPast ? "not-allowed" : "pointer",
+                fontSize: "0.95rem",
+                fontWeight: isSelected ? 700 : 500
+              }}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function TournamentsPage() {
   const canEdit = useCanEdit();
@@ -2953,17 +3102,18 @@ function TournamentsPage() {
   const [message, setMessage] = useState("");
 
   // New-tournament form state.
+  const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [optionDrafts, setOptionDrafts] = useState<NewOptionDraft[]>([
-    { ...emptyOptionDraft }
-  ]);
-  const [showCreate, setShowCreate] = useState(false);
+  const [createMonth, setCreateMonth] = useState<Date>(
+    startOfMonth(new Date())
+  );
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
 
-  // Per-tournament "add option" form drafts, keyed by tournament id.
-  const [addOptionDrafts, setAddOptionDrafts] = useState<
-    Record<number, NewOptionDraft>
-  >({});
+  // "Add more dates" calendar state for an existing tournament.
+  const [addDatesFor, setAddDatesFor] = useState<number | null>(null);
+  const [addMonth, setAddMonth] = useState<Date>(startOfMonth(new Date()));
+  const [addSelected, setAddSelected] = useState<string[]>([]);
 
   const loadTournaments = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/tournaments`);
@@ -3000,39 +3150,36 @@ function TournamentsPage() {
     }
   }
 
-  function updateOptionDraft(
-    index: number,
-    field: keyof NewOptionDraft,
-    value: string
-  ) {
-    setOptionDrafts(prev =>
-      prev.map((draft, i) =>
-        i === index ? { ...draft, [field]: value } : draft
-      )
+  function toggleSelectedDate(key: string) {
+    setSelectedDates(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key].sort()
     );
   }
 
-  function addOptionDraftRow() {
-    setOptionDrafts(prev => [...prev, { ...emptyOptionDraft }]);
-  }
-
-  function removeOptionDraftRow(index: number) {
-    setOptionDrafts(prev =>
-      prev.length === 1 ? prev : prev.filter((_, i) => i !== index)
-    );
+  function resetCreateForm() {
+    setShowCreate(false);
+    setTitle("");
+    setDescription("");
+    setSelectedDates([]);
+    setCreateMonth(startOfMonth(new Date()));
   }
 
   async function createTournament(e: React.FormEvent) {
     e.preventDefault();
 
-    const options = optionDrafts
-      .filter(d => d.title.trim())
-      .map(d => ({
-        title: d.title.trim(),
-        proposedDate: d.proposedDate || null,
-        theme: d.theme.trim() || null,
-        format: d.format.trim() || null
-      }));
+    if (!title.trim()) {
+      alert("Please give the tournament a name.");
+      return;
+    }
+    if (selectedDates.length === 0) {
+      alert("Pick at least one candidate date from the calendar.");
+      return;
+    }
+
+    const options = [...selectedDates].sort().map(key => ({
+      title: formatDateKey(key),
+      proposedDate: key
+    }));
 
     const res = await fetch(`${API_URL}/api/tournaments`, {
       method: "POST",
@@ -3046,27 +3193,21 @@ function TournamentsPage() {
       return;
     }
 
-    setTitle("");
-    setDescription("");
-    setOptionDrafts([{ ...emptyOptionDraft }]);
-    setShowCreate(false);
+    const created = await res.json();
+    resetCreateForm();
     setMessage("✅ Tournament created");
     await loadTournaments();
+    if (created?.Id) {
+      setExpandedId(created.Id);
+      await loadDetail(created.Id);
+    }
   }
 
-  async function castVote(tournamentId: number, optionId: number) {
-    const current = details[tournamentId];
-    const alreadyMine = current?.MyVoteOptionId === optionId;
-
-    const res = alreadyMine
-      ? await fetch(`${API_URL}/api/tournaments/${tournamentId}/vote`, {
-          method: "DELETE"
-        })
-      : await fetch(`${API_URL}/api/tournaments/${tournamentId}/vote`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ optionId })
-        });
+  async function toggleVote(tournamentId: number, optionId: number) {
+    const res = await fetch(
+      `${API_URL}/api/tournament-options/${optionId}/vote`,
+      { method: "POST" }
+    );
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -3077,57 +3218,57 @@ function TournamentsPage() {
     await Promise.all([loadDetail(tournamentId), loadTournaments()]);
   }
 
-  function updateAddOptionDraft(
-    tournamentId: number,
-    field: keyof NewOptionDraft,
-    value: string
-  ) {
-    setAddOptionDrafts(prev => ({
-      ...prev,
-      [tournamentId]: {
-        ...(prev[tournamentId] ?? emptyOptionDraft),
-        [field]: value
-      }
-    }));
+  function openAddDates(tournamentId: number) {
+    setAddDatesFor(tournamentId);
+    setAddSelected([]);
+    setAddMonth(startOfMonth(new Date()));
   }
 
-  async function addOption(tournamentId: number, e: React.FormEvent) {
-    e.preventDefault();
-    const draft = addOptionDrafts[tournamentId] ?? emptyOptionDraft;
+  function toggleAddDate(key: string) {
+    setAddSelected(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key].sort()
+    );
+  }
 
-    if (!draft.title.trim()) {
+  async function saveAddedDates(tournamentId: number) {
+    if (addSelected.length === 0) {
+      setAddDatesFor(null);
       return;
     }
 
-    const res = await fetch(
-      `${API_URL}/api/tournaments/${tournamentId}/options`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: draft.title.trim(),
-          proposedDate: draft.proposedDate || null,
-          theme: draft.theme.trim() || null,
-          format: draft.format.trim() || null
-        })
-      }
+    const existing = new Set(
+      (details[tournamentId]?.Options ?? [])
+        .map(o => (o.ProposedDate ? o.ProposedDate.slice(0, 10) : ""))
+        .filter(Boolean)
     );
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert(`Failed to add option: ${res.status} ${errorText}`);
-      return;
+    for (const key of [...addSelected].sort()) {
+      if (existing.has(key)) continue;
+      const res = await fetch(
+        `${API_URL}/api/tournaments/${tournamentId}/options`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: formatDateKey(key),
+            proposedDate: key
+          })
+        }
+      );
+      if (!res.ok) {
+        const errorText = await res.text();
+        alert(`Failed to add date: ${res.status} ${errorText}`);
+        break;
+      }
     }
 
-    setAddOptionDrafts(prev => ({
-      ...prev,
-      [tournamentId]: { ...emptyOptionDraft }
-    }));
+    setAddDatesFor(null);
+    setAddSelected([]);
     await Promise.all([loadDetail(tournamentId), loadTournaments()]);
   }
 
   async function deleteOption(tournamentId: number, optionId: number) {
-    if (!window.confirm("Remove this option and its votes?")) {
+    if (!window.confirm("Remove this date and its votes?")) {
       return;
     }
 
@@ -3136,7 +3277,7 @@ function TournamentsPage() {
     });
 
     if (!res.ok) {
-      alert(`Failed to delete option: ${res.status}`);
+      alert(`Failed to delete date: ${res.status}`);
       return;
     }
 
@@ -3158,10 +3299,33 @@ function TournamentsPage() {
     await Promise.all([loadDetail(tournamentId), loadTournaments()]);
   }
 
+  async function pickWinner(tournamentId: number) {
+    if (
+      !window.confirm(
+        "Select the date with the most votes? All other dates will be removed and voting will close."
+      )
+    ) {
+      return;
+    }
+
+    const res = await fetch(
+      `${API_URL}/api/tournaments/${tournamentId}/pick-winner`,
+      { method: "POST" }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to pick a winner: ${res.status} ${errorText}`);
+      return;
+    }
+
+    await Promise.all([loadDetail(tournamentId), loadTournaments()]);
+  }
+
   async function deleteTournament(tournamentId: number) {
     if (
       !window.confirm(
-        "Delete this tournament along with all of its options and votes?"
+        "Delete this tournament along with all of its dates and votes?"
       )
     ) {
       return;
@@ -3182,10 +3346,10 @@ function TournamentsPage() {
 
   return (
     <>
-      <h1 style={headingStyle}>🏆 Tournament Voting</h1>
+      <h1 style={headingStyle}>🏆 New Tournament</h1>
       <p style={{ color: "#6b4c35", marginTop: "-0.5rem" }}>
-        Propose dates, themes and formats for an upcoming tournament, then vote
-        for your favourite. Tallies update live.
+        Propose candidate dates for the next tournament, vote for the ones that
+        suit you, then lock in the winning date. Tallies update live.
       </p>
 
       {!canEdit && (
@@ -3225,7 +3389,7 @@ function TournamentsPage() {
               style={primaryButtonStyle}
               onClick={() => setShowCreate(true)}
             >
-              + Propose a tournament
+              + New tournament
             </button>
           ) : (
             <form
@@ -3241,7 +3405,7 @@ function TournamentsPage() {
             >
               <strong style={{ color: "#4a2c17" }}>New tournament</strong>
               <input
-                placeholder="Tournament title (e.g. Summer Whisky Showdown)"
+                placeholder="Tournament name (e.g. Summer Whisky Showdown)"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 required
@@ -3254,68 +3418,47 @@ function TournamentsPage() {
               />
 
               <span style={{ fontWeight: 600, color: "#6b4c35" }}>
-                Options to vote on
+                Pick candidate dates
               </span>
 
-              {optionDrafts.map((draft, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "grid",
-                    gap: "0.4rem",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    padding: "0.6rem",
-                    background: "#fff"
-                  }}
-                >
-                  <input
-                    placeholder="Option label (e.g. Sat 12 Sept – Islay night)"
-                    value={draft.title}
-                    onChange={e =>
-                      updateOptionDraft(index, "title", e.target.value)
-                    }
-                  />
-                  <input
-                    type="date"
-                    value={draft.proposedDate}
-                    onChange={e =>
-                      updateOptionDraft(index, "proposedDate", e.target.value)
-                    }
-                  />
-                  <input
-                    placeholder="Theme (optional)"
-                    value={draft.theme}
-                    onChange={e =>
-                      updateOptionDraft(index, "theme", e.target.value)
-                    }
-                  />
-                  <input
-                    placeholder="Format (optional, e.g. blind bracket)"
-                    value={draft.format}
-                    onChange={e =>
-                      updateOptionDraft(index, "format", e.target.value)
-                    }
-                  />
-                  {optionDrafts.length > 1 && (
-                    <button
-                      type="button"
-                      style={{ ...secondaryButtonStyle, justifySelf: "start" }}
-                      onClick={() => removeOptionDraftRow(index)}
-                    >
-                      Remove option
-                    </button>
-                  )}
-                </div>
-              ))}
+              <MonthCalendar
+                month={createMonth}
+                selectedKeys={selectedDates}
+                onToggle={toggleSelectedDate}
+                onChangeMonth={setCreateMonth}
+              />
 
-              <button
-                type="button"
-                style={{ ...secondaryButtonStyle, justifySelf: "start" }}
-                onClick={addOptionDraftRow}
-              >
-                + Add another option
-              </button>
+              {selectedDates.length > 0 && (
+                <div style={{ display: "grid", gap: "0.35rem" }}>
+                  <span style={{ fontWeight: 600, color: "#6b4c35" }}>
+                    Selected dates ({selectedDates.length})
+                  </span>
+                  {[...selectedDates].sort().map(key => (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        background: "#fff",
+                        border: "1px solid #ddd",
+                        borderRadius: "8px",
+                        padding: "0.4rem 0.6rem"
+                      }}
+                    >
+                      <span>📅 {formatDateKey(key)}</span>
+                      <button
+                        type="button"
+                        style={secondaryButtonStyle}
+                        onClick={() => toggleSelectedDate(key)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button type="submit" style={primaryButtonStyle}>
@@ -3324,12 +3467,7 @@ function TournamentsPage() {
                 <button
                   type="button"
                   style={secondaryButtonStyle}
-                  onClick={() => {
-                    setShowCreate(false);
-                    setTitle("");
-                    setDescription("");
-                    setOptionDrafts([{ ...emptyOptionDraft }]);
-                  }}
+                  onClick={resetCreateForm}
                 >
                   Cancel
                 </button>
@@ -3349,6 +3487,9 @@ function TournamentsPage() {
         const detail = details[t.Id];
         const isExpanded = expandedId === t.Id;
         const isOpen = t.Status === "open";
+        const maxVotes = detail
+          ? Math.max(0, ...detail.Options.map(o => o.VoteCount))
+          : 0;
 
         return (
           <div
@@ -3376,7 +3517,7 @@ function TournamentsPage() {
                   {t.Title}
                 </strong>
                 <div style={{ fontSize: "0.85rem", color: "#6b4c35" }}>
-                  {t.OptionCount} option{t.OptionCount === 1 ? "" : "s"} ·{" "}
+                  {t.OptionCount} date{t.OptionCount === 1 ? "" : "s"} ·{" "}
                   {t.VoteCount} vote{t.VoteCount === 1 ? "" : "s"}
                 </div>
               </div>
@@ -3409,21 +3550,17 @@ function TournamentsPage() {
 
                 {detail &&
                   detail.Options.map(option => {
-                    const totalVotes = detail.Options.reduce(
-                      (sum, o) => sum + o.VoteCount,
-                      0
-                    );
                     const pct =
-                      totalVotes > 0
-                        ? Math.round((option.VoteCount / totalVotes) * 100)
+                      maxVotes > 0
+                        ? Math.round((option.VoteCount / maxVotes) * 100)
                         : 0;
-                    const isMyVote = detail.MyVoteOptionId === option.Id;
+                    const mine = option.MyVote;
 
                     return (
                       <div
                         key={option.Id}
                         style={{
-                          border: `1px solid ${isMyVote ? "#7b3f00" : "#ddd"}`,
+                          border: `1px solid ${mine ? "#7b3f00" : "#ddd"}`,
                           borderRadius: "10px",
                           padding: "0.75rem",
                           marginBottom: "0.6rem",
@@ -3439,7 +3576,9 @@ function TournamentsPage() {
                           }}
                         >
                           <strong style={{ color: "#4a2c17" }}>
-                            {option.Title}
+                            📅{" "}
+                            {formatProposedDate(option.ProposedDate) ||
+                              option.Title}
                           </strong>
                           <span
                             style={{
@@ -3448,27 +3587,10 @@ function TournamentsPage() {
                               whiteSpace: "nowrap"
                             }}
                           >
-                            {option.VoteCount} ({pct}%)
+                            {option.VoteCount} vote
+                            {option.VoteCount === 1 ? "" : "s"}
                           </span>
                         </div>
-
-                        {(option.ProposedDate ||
-                          option.Theme ||
-                          option.Format) && (
-                          <div
-                            style={{
-                              fontSize: "0.85rem",
-                              color: "#6b4c35",
-                              marginTop: "0.25rem"
-                            }}
-                          >
-                            {option.ProposedDate && (
-                              <span>📅 {formatDate(option.ProposedDate)} </span>
-                            )}
-                            {option.Theme && <span>· 🥃 {option.Theme} </span>}
-                            {option.Format && <span>· 🎯 {option.Format}</span>}
-                          </div>
-                        )}
 
                         <div
                           style={{
@@ -3493,9 +3615,9 @@ function TournamentsPage() {
                           <button
                             type="button"
                             disabled={!canEdit || !isOpen}
-                            onClick={() => castVote(t.Id, option.Id)}
+                            onClick={() => toggleVote(t.Id, option.Id)}
                             style={{
-                              ...(isMyVote
+                              ...(mine
                                 ? primaryButtonStyle
                                 : secondaryButtonStyle),
                               opacity: !canEdit || !isOpen ? 0.5 : 1,
@@ -3503,10 +3625,10 @@ function TournamentsPage() {
                                 !canEdit || !isOpen ? "not-allowed" : "pointer"
                             }}
                           >
-                            {isMyVote ? "✓ Your vote (click to undo)" : "Vote"}
+                            {mine ? "✓ Voted" : "Vote"}
                           </button>
 
-                          {canEdit && (
+                          {canEdit && isOpen && (
                             <button
                               type="button"
                               onClick={() => deleteOption(t.Id, option.Id)}
@@ -3522,65 +3644,54 @@ function TournamentsPage() {
 
                 {detail && detail.Options.length === 0 && (
                   <p style={{ color: "#6b4c35" }}>
-                    No options yet{canEdit ? " — add one below." : "."}
+                    No dates yet{canEdit ? " — add some below." : "."}
                   </p>
                 )}
 
-                {canEdit && isOpen && (
-                  <form
-                    onSubmit={e => addOption(t.Id, e)}
+                {canEdit && isOpen && addDatesFor !== t.Id && (
+                  <button
+                    type="button"
+                    style={secondaryButtonStyle}
+                    onClick={() => openAddDates(t.Id)}
+                  >
+                    + Add dates
+                  </button>
+                )}
+
+                {canEdit && isOpen && addDatesFor === t.Id && (
+                  <div
                     style={{
+                      marginTop: "0.5rem",
                       display: "grid",
-                      gap: "0.4rem",
-                      border: "1px dashed #c7b299",
-                      borderRadius: "10px",
-                      padding: "0.75rem",
-                      marginTop: "0.5rem"
+                      gap: "0.5rem"
                     }}
                   >
-                    <span style={{ fontWeight: 600, color: "#6b4c35" }}>
-                      Add an option
-                    </span>
-                    <input
-                      placeholder="Option label"
-                      value={addOptionDrafts[t.Id]?.title ?? ""}
-                      onChange={e =>
-                        updateAddOptionDraft(t.Id, "title", e.target.value)
-                      }
-                      required
+                    <MonthCalendar
+                      month={addMonth}
+                      selectedKeys={addSelected}
+                      onToggle={toggleAddDate}
+                      onChangeMonth={setAddMonth}
                     />
-                    <input
-                      type="date"
-                      value={addOptionDrafts[t.Id]?.proposedDate ?? ""}
-                      onChange={e =>
-                        updateAddOptionDraft(
-                          t.Id,
-                          "proposedDate",
-                          e.target.value
-                        )
-                      }
-                    />
-                    <input
-                      placeholder="Theme (optional)"
-                      value={addOptionDrafts[t.Id]?.theme ?? ""}
-                      onChange={e =>
-                        updateAddOptionDraft(t.Id, "theme", e.target.value)
-                      }
-                    />
-                    <input
-                      placeholder="Format (optional)"
-                      value={addOptionDrafts[t.Id]?.format ?? ""}
-                      onChange={e =>
-                        updateAddOptionDraft(t.Id, "format", e.target.value)
-                      }
-                    />
-                    <button
-                      type="submit"
-                      style={{ ...secondaryButtonStyle, justifySelf: "start" }}
-                    >
-                      Add option
-                    </button>
-                  </form>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        type="button"
+                        style={primaryButtonStyle}
+                        onClick={() => saveAddedDates(t.Id)}
+                      >
+                        Add selected dates
+                      </button>
+                      <button
+                        type="button"
+                        style={secondaryButtonStyle}
+                        onClick={() => {
+                          setAddDatesFor(null);
+                          setAddSelected([]);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {canEdit && (
@@ -3592,6 +3703,15 @@ function TournamentsPage() {
                       flexWrap: "wrap"
                     }}
                   >
+                    {isOpen && detail && detail.Options.length > 1 && (
+                      <button
+                        type="button"
+                        style={primaryButtonStyle}
+                        onClick={() => pickWinner(t.Id)}
+                      >
+                        🏆 Pick winning date
+                      </button>
+                    )}
                     {isOpen ? (
                       <button
                         type="button"
@@ -3647,7 +3767,7 @@ function AppShell() {
     { to: "/members", label: "Members" },
     { to: "/leaderboard", label: "Whisky Leaderboard" },
     { to: "/members/leaderboard", label: "Member Leaderboard" },
-    { to: "/tournaments", label: "Tournament Voting" },
+    { to: "/tournaments", label: "New Tournament" },
     { to: "/admin", label: "Admin" }
   ];
 
