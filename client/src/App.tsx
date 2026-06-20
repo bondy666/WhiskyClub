@@ -3819,35 +3819,52 @@ function AppShell() {
 <div
   style={{
     textAlign: "center",
-    marginBottom: "1.5rem",
-    paddingBottom: "1.25rem",
-    borderBottom: "1px solid rgba(123, 63, 0, 0.18)"
+    marginBottom: "1.75rem",
+    padding: "1.75rem 1rem 1.9rem",
+    borderRadius: "20px",
+    background:
+      "linear-gradient(150deg, #2b1a0e 0%, #5f2f00 45%, #7b3f00 70%, #b5651d 100%)",
+    boxShadow: "0 14px 34px rgba(31, 18, 8, 0.45)",
+    border: "1px solid rgba(240, 194, 123, 0.4)",
+    position: "relative",
+    overflow: "hidden"
   }}
 >
+  <div
+    style={{
+      position: "absolute",
+      top: "-40px",
+      right: "-30px",
+      width: "160px",
+      height: "160px",
+      borderRadius: "50%",
+      background:
+        "radial-gradient(circle, rgba(240,194,123,0.35) 0%, rgba(240,194,123,0) 70%)",
+      pointerEvents: "none"
+    }}
+  />
   <img
     src="/pwa-192x192.png"
     alt="Ealing Whisky Guild"
     style={{
-      width: "120px",
-      height: "120px",
+      width: "112px",
+      height: "112px",
       marginBottom: "0.5rem",
-      filter: "drop-shadow(0 6px 14px rgba(43, 24, 8, 0.35))"
+      borderRadius: "50%",
+      border: "3px solid rgba(245, 230, 200, 0.85)",
+      boxShadow: "0 8px 20px rgba(0, 0, 0, 0.4)"
     }}
   />
 
   <h1
     style={{
       fontFamily: "'Cormorant Garamond', serif",
-      fontSize: "2.6rem",
+      fontSize: "2.7rem",
       fontWeight: 700,
       margin: 0,
       lineHeight: 1.05,
-      background:
-        "linear-gradient(135deg, #7b3f00 0%, #b5651d 48%, #4a2c17 100%)",
-      WebkitBackgroundClip: "text",
-      backgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      color: "transparent"
+      color: "#f6e8cd",
+      textShadow: "0 2px 10px rgba(0, 0, 0, 0.35)"
     }}
   >
     Ealing Whisky Guild
@@ -3855,12 +3872,13 @@ function AppShell() {
 
   <p
     style={{
-      marginTop: "0.35rem",
-      color: "#8a6b4e",
+      marginTop: "0.5rem",
+      marginBottom: 0,
+      color: "#e7c89a",
       fontStyle: "italic",
-      letterSpacing: "0.18em",
+      letterSpacing: "0.22em",
       textTransform: "uppercase",
-      fontSize: "0.8rem"
+      fontSize: "0.78rem"
     }}
   >
     Est. 2026
