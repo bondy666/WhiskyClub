@@ -131,6 +131,40 @@ type SessionPhoto = {
   CreatedAt: string;
 };
 
+type TournamentOption = {
+  Id: number;
+  TournamentId: number;
+  Title: string;
+  ProposedDate?: string | null;
+  Theme?: string | null;
+  Format?: string | null;
+  CreatedAt: string;
+  VoteCount: number;
+};
+
+type TournamentListItem = {
+  Id: number;
+  Title: string;
+  Description?: string | null;
+  Status: string;
+  CreatedByEmail?: string | null;
+  CreatedAt: string;
+  OptionCount: number;
+  VoteCount: number;
+  MyVoteOptionId: number | null;
+};
+
+type TournamentDetail = {
+  Id: number;
+  Title: string;
+  Description?: string | null;
+  Status: string;
+  CreatedByEmail?: string | null;
+  CreatedAt: string;
+  Options: TournamentOption[];
+  MyVoteOptionId: number | null;
+};
+
 const API_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:3000"
@@ -2896,9 +2930,705 @@ function SessionPhotosPage() {
   );
 }
 
+type NewOptionDraft = {
+  title: string;
+  proposedDate: string;
+  theme: string;
+  format: string;
+};
+
+const emptyOptionDraft: NewOptionDraft = {
+  title: "",
+  proposedDate: "",
+  theme: "",
+  format: ""
+};
+
+function TournamentsPage() {
+  const canEdit = useCanEdit();
+
+  const [tournaments, setTournaments] = useState<TournamentListItem[]>([]);
+  const [details, setDetails] = useState<Record<number, TournamentDetail>>({});
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+
+  // New-tournament form state.
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [optionDrafts, setOptionDrafts] = useState<NewOptionDraft[]>([
+    { ...emptyOptionDraft }
+  ]);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Per-tournament "add option" form drafts, keyed by tournament id.
+  const [addOptionDrafts, setAddOptionDrafts] = useState<
+    Record<number, NewOptionDraft>
+  >({});
+
+  const loadTournaments = useCallback(async () => {
+    const res = await fetch(`${API_URL}/api/tournaments`);
+    if (!res.ok) {
+      alert(`Failed to load tournaments: ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    setTournaments(data);
+  }, []);
+
+  const loadDetail = useCallback(async (id: number) => {
+    const res = await fetch(`${API_URL}/api/tournaments/${id}`);
+    if (!res.ok) {
+      alert(`Failed to load tournament: ${res.status}`);
+      return;
+    }
+    const data: TournamentDetail = await res.json();
+    setDetails(prev => ({ ...prev, [id]: data }));
+  }, []);
+
+  useEffect(() => {
+    void loadTournaments();
+  }, [loadTournaments]);
+
+  function toggleExpand(id: number) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    if (!details[id]) {
+      void loadDetail(id);
+    }
+  }
+
+  function updateOptionDraft(
+    index: number,
+    field: keyof NewOptionDraft,
+    value: string
+  ) {
+    setOptionDrafts(prev =>
+      prev.map((draft, i) =>
+        i === index ? { ...draft, [field]: value } : draft
+      )
+    );
+  }
+
+  function addOptionDraftRow() {
+    setOptionDrafts(prev => [...prev, { ...emptyOptionDraft }]);
+  }
+
+  function removeOptionDraftRow(index: number) {
+    setOptionDrafts(prev =>
+      prev.length === 1 ? prev : prev.filter((_, i) => i !== index)
+    );
+  }
+
+  async function createTournament(e: React.FormEvent) {
+    e.preventDefault();
+
+    const options = optionDrafts
+      .filter(d => d.title.trim())
+      .map(d => ({
+        title: d.title.trim(),
+        proposedDate: d.proposedDate || null,
+        theme: d.theme.trim() || null,
+        format: d.format.trim() || null
+      }));
+
+    const res = await fetch(`${API_URL}/api/tournaments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description, options })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to create tournament: ${res.status} ${errorText}`);
+      return;
+    }
+
+    setTitle("");
+    setDescription("");
+    setOptionDrafts([{ ...emptyOptionDraft }]);
+    setShowCreate(false);
+    setMessage("✅ Tournament created");
+    await loadTournaments();
+  }
+
+  async function castVote(tournamentId: number, optionId: number) {
+    const current = details[tournamentId];
+    const alreadyMine = current?.MyVoteOptionId === optionId;
+
+    const res = alreadyMine
+      ? await fetch(`${API_URL}/api/tournaments/${tournamentId}/vote`, {
+          method: "DELETE"
+        })
+      : await fetch(`${API_URL}/api/tournaments/${tournamentId}/vote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ optionId })
+        });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to record vote: ${res.status} ${errorText}`);
+      return;
+    }
+
+    await Promise.all([loadDetail(tournamentId), loadTournaments()]);
+  }
+
+  function updateAddOptionDraft(
+    tournamentId: number,
+    field: keyof NewOptionDraft,
+    value: string
+  ) {
+    setAddOptionDrafts(prev => ({
+      ...prev,
+      [tournamentId]: {
+        ...(prev[tournamentId] ?? emptyOptionDraft),
+        [field]: value
+      }
+    }));
+  }
+
+  async function addOption(tournamentId: number, e: React.FormEvent) {
+    e.preventDefault();
+    const draft = addOptionDrafts[tournamentId] ?? emptyOptionDraft;
+
+    if (!draft.title.trim()) {
+      return;
+    }
+
+    const res = await fetch(
+      `${API_URL}/api/tournaments/${tournamentId}/options`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title.trim(),
+          proposedDate: draft.proposedDate || null,
+          theme: draft.theme.trim() || null,
+          format: draft.format.trim() || null
+        })
+      }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      alert(`Failed to add option: ${res.status} ${errorText}`);
+      return;
+    }
+
+    setAddOptionDrafts(prev => ({
+      ...prev,
+      [tournamentId]: { ...emptyOptionDraft }
+    }));
+    await Promise.all([loadDetail(tournamentId), loadTournaments()]);
+  }
+
+  async function deleteOption(tournamentId: number, optionId: number) {
+    if (!window.confirm("Remove this option and its votes?")) {
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/tournament-options/${optionId}`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      alert(`Failed to delete option: ${res.status}`);
+      return;
+    }
+
+    await Promise.all([loadDetail(tournamentId), loadTournaments()]);
+  }
+
+  async function setStatus(tournamentId: number, status: "open" | "closed") {
+    const res = await fetch(`${API_URL}/api/tournaments/${tournamentId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+
+    if (!res.ok) {
+      alert(`Failed to update tournament: ${res.status}`);
+      return;
+    }
+
+    await Promise.all([loadDetail(tournamentId), loadTournaments()]);
+  }
+
+  async function deleteTournament(tournamentId: number) {
+    if (
+      !window.confirm(
+        "Delete this tournament along with all of its options and votes?"
+      )
+    ) {
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/tournaments/${tournamentId}`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      alert(`Failed to delete tournament: ${res.status}`);
+      return;
+    }
+
+    setExpandedId(null);
+    await loadTournaments();
+  }
+
+  return (
+    <>
+      <h1 style={headingStyle}>🏆 Tournament Voting</h1>
+      <p style={{ color: "#6b4c35", marginTop: "-0.5rem" }}>
+        Propose dates, themes and formats for an upcoming tournament, then vote
+        for your favourite. Tallies update live.
+      </p>
+
+      {!canEdit && (
+        <div
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            padding: "0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          Sign in with an approved Microsoft or Google account to propose
+          tournaments and vote.
+        </div>
+      )}
+
+      {message && (
+        <div
+          style={{
+            background: "#e7f6ec",
+            border: "1px solid #b7e0c4",
+            padding: "0.6rem 0.75rem",
+            borderRadius: "8px",
+            marginBottom: "1rem"
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {canEdit && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          {!showCreate ? (
+            <button
+              type="button"
+              style={primaryButtonStyle}
+              onClick={() => setShowCreate(true)}
+            >
+              + Propose a tournament
+            </button>
+          ) : (
+            <form
+              onSubmit={createTournament}
+              style={{
+                display: "grid",
+                gap: "0.75rem",
+                border: "1px solid #c7b299",
+                background: "#f6f0e7",
+                borderRadius: "12px",
+                padding: "1rem"
+              }}
+            >
+              <strong style={{ color: "#4a2c17" }}>New tournament</strong>
+              <input
+                placeholder="Tournament title (e.g. Summer Whisky Showdown)"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                required
+              />
+              <textarea
+                placeholder="Description (optional)"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                rows={2}
+              />
+
+              <span style={{ fontWeight: 600, color: "#6b4c35" }}>
+                Options to vote on
+              </span>
+
+              {optionDrafts.map((draft, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "grid",
+                    gap: "0.4rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    padding: "0.6rem",
+                    background: "#fff"
+                  }}
+                >
+                  <input
+                    placeholder="Option label (e.g. Sat 12 Sept – Islay night)"
+                    value={draft.title}
+                    onChange={e =>
+                      updateOptionDraft(index, "title", e.target.value)
+                    }
+                  />
+                  <input
+                    type="date"
+                    value={draft.proposedDate}
+                    onChange={e =>
+                      updateOptionDraft(index, "proposedDate", e.target.value)
+                    }
+                  />
+                  <input
+                    placeholder="Theme (optional)"
+                    value={draft.theme}
+                    onChange={e =>
+                      updateOptionDraft(index, "theme", e.target.value)
+                    }
+                  />
+                  <input
+                    placeholder="Format (optional, e.g. blind bracket)"
+                    value={draft.format}
+                    onChange={e =>
+                      updateOptionDraft(index, "format", e.target.value)
+                    }
+                  />
+                  {optionDrafts.length > 1 && (
+                    <button
+                      type="button"
+                      style={{ ...secondaryButtonStyle, justifySelf: "start" }}
+                      onClick={() => removeOptionDraftRow(index)}
+                    >
+                      Remove option
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              <button
+                type="button"
+                style={{ ...secondaryButtonStyle, justifySelf: "start" }}
+                onClick={addOptionDraftRow}
+              >
+                + Add another option
+              </button>
+
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="submit" style={primaryButtonStyle}>
+                  Create tournament
+                </button>
+                <button
+                  type="button"
+                  style={secondaryButtonStyle}
+                  onClick={() => {
+                    setShowCreate(false);
+                    setTitle("");
+                    setDescription("");
+                    setOptionDrafts([{ ...emptyOptionDraft }]);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {tournaments.length === 0 && (
+        <p style={{ color: "#6b4c35" }}>
+          No tournaments yet. {canEdit ? "Propose the first one above." : ""}
+        </p>
+      )}
+
+      {tournaments.map(t => {
+        const detail = details[t.Id];
+        const isExpanded = expandedId === t.Id;
+        const isOpen = t.Status === "open";
+
+        return (
+          <div
+            key={t.Id}
+            style={{
+              border: "1px solid #ccc",
+              background: "#f6f0e7",
+              borderRadius: "12px",
+              padding: "1rem",
+              marginBottom: "1rem"
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer"
+              }}
+              onClick={() => toggleExpand(t.Id)}
+            >
+              <div>
+                <strong style={{ fontSize: "1.2rem", color: "#4a2c17" }}>
+                  {t.Title}
+                </strong>
+                <div style={{ fontSize: "0.85rem", color: "#6b4c35" }}>
+                  {t.OptionCount} option{t.OptionCount === 1 ? "" : "s"} ·{" "}
+                  {t.VoteCount} vote{t.VoteCount === 1 ? "" : "s"}
+                </div>
+              </div>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  padding: "0.2rem 0.55rem",
+                  borderRadius: "999px",
+                  color: isOpen ? "#1b5e20" : "#7a3b00",
+                  background: isOpen ? "#d6f0db" : "#f0ddc6",
+                  border: `1px solid ${isOpen ? "#a9d8b2" : "#dcc09a"}`
+                }}
+              >
+                {isOpen ? "Voting open" : "Closed"}
+              </span>
+            </div>
+
+            {t.Description && (
+              <p style={{ margin: "0.5rem 0 0", color: "#4a2c17" }}>
+                {t.Description}
+              </p>
+            )}
+
+            {isExpanded && (
+              <div style={{ marginTop: "1rem" }}>
+                {!detail && <p>Loading…</p>}
+
+                {detail &&
+                  detail.Options.map(option => {
+                    const totalVotes = detail.Options.reduce(
+                      (sum, o) => sum + o.VoteCount,
+                      0
+                    );
+                    const pct =
+                      totalVotes > 0
+                        ? Math.round((option.VoteCount / totalVotes) * 100)
+                        : 0;
+                    const isMyVote = detail.MyVoteOptionId === option.Id;
+
+                    return (
+                      <div
+                        key={option.Id}
+                        style={{
+                          border: `1px solid ${isMyVote ? "#7b3f00" : "#ddd"}`,
+                          borderRadius: "10px",
+                          padding: "0.75rem",
+                          marginBottom: "0.6rem",
+                          background: "#fff"
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "baseline",
+                            gap: "0.5rem"
+                          }}
+                        >
+                          <strong style={{ color: "#4a2c17" }}>
+                            {option.Title}
+                          </strong>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: "#6b4c35",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {option.VoteCount} ({pct}%)
+                          </span>
+                        </div>
+
+                        {(option.ProposedDate ||
+                          option.Theme ||
+                          option.Format) && (
+                          <div
+                            style={{
+                              fontSize: "0.85rem",
+                              color: "#6b4c35",
+                              marginTop: "0.25rem"
+                            }}
+                          >
+                            {option.ProposedDate && (
+                              <span>📅 {formatDate(option.ProposedDate)} </span>
+                            )}
+                            {option.Theme && <span>· 🥃 {option.Theme} </span>}
+                            {option.Format && <span>· 🎯 {option.Format}</span>}
+                          </div>
+                        )}
+
+                        <div
+                          style={{
+                            height: "8px",
+                            background: "#eadfce",
+                            borderRadius: "999px",
+                            overflow: "hidden",
+                            margin: "0.5rem 0"
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: "100%",
+                              background: "#7b3f00",
+                              transition: "width 0.3s ease"
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            disabled={!canEdit || !isOpen}
+                            onClick={() => castVote(t.Id, option.Id)}
+                            style={{
+                              ...(isMyVote
+                                ? primaryButtonStyle
+                                : secondaryButtonStyle),
+                              opacity: !canEdit || !isOpen ? 0.5 : 1,
+                              cursor:
+                                !canEdit || !isOpen ? "not-allowed" : "pointer"
+                            }}
+                          >
+                            {isMyVote ? "✓ Your vote (click to undo)" : "Vote"}
+                          </button>
+
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => deleteOption(t.Id, option.Id)}
+                              style={dangerButtonStyle}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                {detail && detail.Options.length === 0 && (
+                  <p style={{ color: "#6b4c35" }}>
+                    No options yet{canEdit ? " — add one below." : "."}
+                  </p>
+                )}
+
+                {canEdit && isOpen && (
+                  <form
+                    onSubmit={e => addOption(t.Id, e)}
+                    style={{
+                      display: "grid",
+                      gap: "0.4rem",
+                      border: "1px dashed #c7b299",
+                      borderRadius: "10px",
+                      padding: "0.75rem",
+                      marginTop: "0.5rem"
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, color: "#6b4c35" }}>
+                      Add an option
+                    </span>
+                    <input
+                      placeholder="Option label"
+                      value={addOptionDrafts[t.Id]?.title ?? ""}
+                      onChange={e =>
+                        updateAddOptionDraft(t.Id, "title", e.target.value)
+                      }
+                      required
+                    />
+                    <input
+                      type="date"
+                      value={addOptionDrafts[t.Id]?.proposedDate ?? ""}
+                      onChange={e =>
+                        updateAddOptionDraft(
+                          t.Id,
+                          "proposedDate",
+                          e.target.value
+                        )
+                      }
+                    />
+                    <input
+                      placeholder="Theme (optional)"
+                      value={addOptionDrafts[t.Id]?.theme ?? ""}
+                      onChange={e =>
+                        updateAddOptionDraft(t.Id, "theme", e.target.value)
+                      }
+                    />
+                    <input
+                      placeholder="Format (optional)"
+                      value={addOptionDrafts[t.Id]?.format ?? ""}
+                      onChange={e =>
+                        updateAddOptionDraft(t.Id, "format", e.target.value)
+                      }
+                    />
+                    <button
+                      type="submit"
+                      style={{ ...secondaryButtonStyle, justifySelf: "start" }}
+                    >
+                      Add option
+                    </button>
+                  </form>
+                )}
+
+                {canEdit && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      marginTop: "0.75rem",
+                      flexWrap: "wrap"
+                    }}
+                  >
+                    {isOpen ? (
+                      <button
+                        type="button"
+                        style={secondaryButtonStyle}
+                        onClick={() => setStatus(t.Id, "closed")}
+                      >
+                        Close voting
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        style={secondaryButtonStyle}
+                        onClick={() => setStatus(t.Id, "open")}
+                      >
+                        Re-open voting
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      style={dangerButtonStyle}
+                      onClick={() => deleteTournament(t.Id)}
+                    >
+                      Delete tournament
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function App() {
   const auth = useProvideAuth();
-
   return (
     <AuthContext.Provider value={auth}>
       <AppShell />
@@ -2917,6 +3647,7 @@ function AppShell() {
     { to: "/members", label: "Members" },
     { to: "/leaderboard", label: "Whisky Leaderboard" },
     { to: "/members/leaderboard", label: "Member Leaderboard" },
+    { to: "/tournaments", label: "Tournament Voting" },
     { to: "/admin", label: "Admin" }
   ];
 
@@ -3041,6 +3772,7 @@ function AppShell() {
         <Route path="/members/:id/stats" element={<MemberStatsPage />} />
         <Route path="/leaderboard" element={<WhiskyLeaderboardPage />} />
         <Route path="/members/leaderboard" element={<MemberLeaderboardPage />} />
+        <Route path="/tournaments" element={<TournamentsPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/sessions/:id/photos" element={<SessionPhotosPage />} />
       </Routes>

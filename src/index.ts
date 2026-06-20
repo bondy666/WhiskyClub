@@ -190,6 +190,67 @@ async function backfillMembersIntoAdminGroup(): Promise<void> {
   }
 }
 
+// Creates the tables that back the tournament voting feature when they are not
+// already present. Runs on startup and is idempotent, so it is safe to call on
+// every boot. Each member may cast a single (changeable) vote per tournament,
+// enforced by the unique constraint on (TournamentId, VoterEmail).
+async function ensureTournamentTables(): Promise<void> {
+  try {
+    const pool = await poolPromise;
+
+    await pool.request().query(`
+      IF OBJECT_ID('dbo.Tournaments', 'U') IS NULL
+      BEGIN
+        CREATE TABLE Tournaments (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          Title NVARCHAR(150) NOT NULL,
+          Description NVARCHAR(500) NULL,
+          Status NVARCHAR(20) NOT NULL
+            CONSTRAINT DF_Tournaments_Status DEFAULT 'open',
+          CreatedByEmail NVARCHAR(255) NULL,
+          CreatedAt DATETIME2 NOT NULL
+            CONSTRAINT DF_Tournaments_CreatedAt DEFAULT SYSUTCDATETIME()
+        );
+      END;
+
+      IF OBJECT_ID('dbo.TournamentOptions', 'U') IS NULL
+      BEGIN
+        CREATE TABLE TournamentOptions (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          TournamentId INT NOT NULL,
+          Title NVARCHAR(150) NOT NULL,
+          ProposedDate DATE NULL,
+          Theme NVARCHAR(200) NULL,
+          Format NVARCHAR(200) NULL,
+          CreatedAt DATETIME2 NOT NULL
+            CONSTRAINT DF_TournamentOptions_CreatedAt DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_TournamentOptions_Tournaments FOREIGN KEY (TournamentId)
+            REFERENCES Tournaments(Id) ON DELETE CASCADE
+        );
+      END;
+
+      IF OBJECT_ID('dbo.TournamentVotes', 'U') IS NULL
+      BEGIN
+        CREATE TABLE TournamentVotes (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          TournamentId INT NOT NULL,
+          TournamentOptionId INT NOT NULL,
+          VoterEmail NVARCHAR(255) NOT NULL,
+          CreatedAt DATETIME2 NOT NULL
+            CONSTRAINT DF_TournamentVotes_CreatedAt DEFAULT SYSUTCDATETIME(),
+          CONSTRAINT FK_TournamentVotes_Tournaments FOREIGN KEY (TournamentId)
+            REFERENCES Tournaments(Id) ON DELETE CASCADE,
+          CONSTRAINT UQ_TournamentVotes_Voter UNIQUE (TournamentId, VoterEmail)
+        );
+      END;
+    `);
+
+    console.log("Ensured tournament tables exist");
+  } catch (error: any) {
+    console.error("Failed to ensure tournament tables", error);
+  }
+}
+
 // Enforce sign-in + allow-list on every mutating API request, regardless of the
 // order in which individual routes are registered below. Safe (read-only)
 // methods are left open so the public can still view sessions, whiskies, etc.
@@ -1510,6 +1571,407 @@ app.delete("/api/session-photos/:id", async (req, res) => {
 });
 
 
+// ---------------------------------------------------------------------------
+// Tournament voting
+//
+// Members propose options for a future tournament (date / theme / format) and
+// vote for the one they prefer. Voting is open: the running tally is always
+// visible, and each signed-in member may cast a single, changeable vote per
+// tournament (enforced by UQ_TournamentVotes_Voter).
+// ---------------------------------------------------------------------------
+
+// List every tournament with its option/vote counts and, when the caller is
+// signed in, which option they have voted for. Open tournaments are listed
+// first, then by most recently created.
+app.get("/api/tournaments", async (req, res) => {
+  try {
+    const email = getPrincipalEmail(req);
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("VoterEmail", sql.NVarChar(255), email ? email.toLowerCase() : null)
+      .query(`
+        SELECT
+          t.Id,
+          t.Title,
+          t.Description,
+          t.Status,
+          t.CreatedByEmail,
+          t.CreatedAt,
+          (SELECT COUNT(*) FROM TournamentOptions o WHERE o.TournamentId = t.Id) AS OptionCount,
+          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentId = t.Id) AS VoteCount,
+          (
+            SELECT TOP 1 v.TournamentOptionId
+            FROM TournamentVotes v
+            WHERE v.TournamentId = t.Id AND LOWER(v.VoterEmail) = @VoterEmail
+          ) AS MyVoteOptionId
+        FROM Tournaments t
+        ORDER BY
+          CASE WHEN t.Status = 'open' THEN 0 ELSE 1 END,
+          t.CreatedAt DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    console.error("Failed to retrieve tournaments", error);
+    res.status(500).json({
+      error: "Failed to retrieve tournaments",
+      details: error.message
+    });
+  }
+});
+
+// Full detail for a single tournament: its options (with live vote tallies,
+// most-voted first) plus the option the signed-in caller has voted for.
+app.get("/api/tournaments/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const email = getPrincipalEmail(req);
+    const pool = await poolPromise;
+
+    const tournamentResult = await pool.request()
+      .input("Id", sql.Int, id)
+      .query(`SELECT * FROM Tournaments WHERE Id = @Id`);
+
+    if (tournamentResult.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    const optionsResult = await pool.request()
+      .input("TournamentId", sql.Int, id)
+      .query(`
+        SELECT
+          o.Id,
+          o.TournamentId,
+          o.Title,
+          o.ProposedDate,
+          o.Theme,
+          o.Format,
+          o.CreatedAt,
+          (SELECT COUNT(*) FROM TournamentVotes v WHERE v.TournamentOptionId = o.Id) AS VoteCount
+        FROM TournamentOptions o
+        WHERE o.TournamentId = @TournamentId
+        ORDER BY VoteCount DESC, o.CreatedAt ASC
+      `);
+
+    const myVoteResult = await pool.request()
+      .input("TournamentId", sql.Int, id)
+      .input("VoterEmail", sql.NVarChar(255), email ? email.toLowerCase() : null)
+      .query(`
+        SELECT TOP 1 TournamentOptionId
+        FROM TournamentVotes
+        WHERE TournamentId = @TournamentId AND LOWER(VoterEmail) = @VoterEmail
+      `);
+
+    res.json({
+      ...tournamentResult.recordset[0],
+      Options: optionsResult.recordset,
+      MyVoteOptionId: myVoteResult.recordset[0]?.TournamentOptionId ?? null
+    });
+  } catch (error: any) {
+    console.error("Failed to retrieve tournament", error);
+    res.status(500).json({
+      error: "Failed to retrieve tournament",
+      details: error.message
+    });
+  }
+});
+
+// Create a tournament. An optional array of initial options may be supplied so
+// a proposer can seed the poll with the dates/themes they have in mind.
+app.post("/api/tournaments", async (req: any, res) => {
+  try {
+    const { title, description, options } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const created = await pool.request()
+      .input("Title", sql.NVarChar(150), title.trim())
+      .input("Description", sql.NVarChar(500), description?.trim() || null)
+      .input("CreatedByEmail", sql.NVarChar(255), req.userEmail || null)
+      .query(`
+        INSERT INTO Tournaments (Title, Description, CreatedByEmail)
+        OUTPUT INSERTED.*
+        VALUES (@Title, @Description, @CreatedByEmail)
+      `);
+
+    const tournament = created.recordset[0];
+
+    if (Array.isArray(options)) {
+      for (const opt of options) {
+        if (!opt || !opt.title || !opt.title.trim()) {
+          continue;
+        }
+
+        await pool.request()
+          .input("TournamentId", sql.Int, tournament.Id)
+          .input("Title", sql.NVarChar(150), opt.title.trim())
+          .input("ProposedDate", sql.Date, opt.proposedDate || null)
+          .input("Theme", sql.NVarChar(200), opt.theme?.trim() || null)
+          .input("Format", sql.NVarChar(200), opt.format?.trim() || null)
+          .query(`
+            INSERT INTO TournamentOptions (TournamentId, Title, ProposedDate, Theme, Format)
+            VALUES (@TournamentId, @Title, @ProposedDate, @Theme, @Format)
+          `);
+      }
+    }
+
+    res.status(201).json(tournament);
+  } catch (error: any) {
+    console.error("Failed to create tournament", error);
+    res.status(500).json({
+      error: "Failed to create tournament",
+      details: error.message
+    });
+  }
+});
+
+// Update a tournament's title/description/status. Used to close (or re-open)
+// voting once the club has settled on a tournament.
+app.put("/api/tournaments/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { title, description, status } = req.body;
+
+    if (status && status !== "open" && status !== "closed") {
+      return res.status(400).json({ error: "status must be 'open' or 'closed'" });
+    }
+
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, id)
+      .input("Title", sql.NVarChar(150), title?.trim() || null)
+      .input("Description", sql.NVarChar(500), description?.trim() ?? null)
+      .input("Status", sql.NVarChar(20), status || null)
+      .query(`
+        UPDATE Tournaments
+        SET
+          Title = COALESCE(@Title, Title),
+          Description = CASE WHEN @Title IS NULL AND @Status IS NULL THEN Description ELSE @Description END,
+          Status = COALESCE(@Status, Status)
+        OUTPUT INSERTED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error: any) {
+    console.error("Failed to update tournament", error);
+    res.status(500).json({
+      error: "Failed to update tournament",
+      details: error.message
+    });
+  }
+});
+
+// Delete a tournament. Options and votes are removed automatically via the
+// ON DELETE CASCADE foreign keys.
+app.delete("/api/tournaments/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input("Id", sql.Int, id)
+      .query(`
+        DELETE FROM Tournaments
+        OUTPUT DELETED.*
+        WHERE Id = @Id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Failed to delete tournament", error);
+    res.status(500).json({
+      error: "Failed to delete tournament",
+      details: error.message
+    });
+  }
+});
+
+// Add a new option to an existing tournament. Anyone allowed to edit may
+// suggest an alternative date/theme/format while voting is open.
+app.post("/api/tournaments/:id/options", async (req, res) => {
+  try {
+    const tournamentId = Number(req.params.id);
+    const { title, proposedDate, theme, format } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const tournament = await pool.request()
+      .input("Id", sql.Int, tournamentId)
+      .query(`SELECT Status FROM Tournaments WHERE Id = @Id`);
+
+    if (tournament.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    if (tournament.recordset[0].Status !== "open") {
+      return res.status(409).json({ error: "Voting is closed for this tournament" });
+    }
+
+    const result = await pool.request()
+      .input("TournamentId", sql.Int, tournamentId)
+      .input("Title", sql.NVarChar(150), title.trim())
+      .input("ProposedDate", sql.Date, proposedDate || null)
+      .input("Theme", sql.NVarChar(200), theme?.trim() || null)
+      .input("Format", sql.NVarChar(200), format?.trim() || null)
+      .query(`
+        INSERT INTO TournamentOptions (TournamentId, Title, ProposedDate, Theme, Format)
+        OUTPUT INSERTED.*
+        VALUES (@TournamentId, @Title, @ProposedDate, @Theme, @Format)
+      `);
+
+    res.status(201).json(result.recordset[0]);
+  } catch (error: any) {
+    console.error("Failed to add tournament option", error);
+    res.status(500).json({
+      error: "Failed to add tournament option",
+      details: error.message
+    });
+  }
+});
+
+// Delete an option. Its votes are removed first because votes intentionally do
+// not cascade from options (only from the parent tournament).
+app.delete("/api/tournament-options/:id", async (req, res) => {
+  try {
+    const optionId = Number(req.params.id);
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("OptionId", sql.Int, optionId)
+      .query(`DELETE FROM TournamentVotes WHERE TournamentOptionId = @OptionId`);
+
+    const result = await pool.request()
+      .input("OptionId", sql.Int, optionId)
+      .query(`
+        DELETE FROM TournamentOptions
+        OUTPUT DELETED.*
+        WHERE Id = @OptionId
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Option not found" });
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Failed to delete tournament option", error);
+    res.status(500).json({
+      error: "Failed to delete tournament option",
+      details: error.message
+    });
+  }
+});
+
+// Cast or change a vote. Each member has a single vote per tournament, so this
+// upserts on (TournamentId, VoterEmail): voting for a new option moves the vote.
+app.post("/api/tournaments/:id/vote", async (req: any, res) => {
+  try {
+    const tournamentId = Number(req.params.id);
+    const { optionId } = req.body;
+    const voterEmail = (req.userEmail as string).toLowerCase();
+
+    if (!optionId) {
+      return res.status(400).json({ error: "optionId is required" });
+    }
+
+    const pool = await poolPromise;
+
+    const tournament = await pool.request()
+      .input("Id", sql.Int, tournamentId)
+      .query(`SELECT Status FROM Tournaments WHERE Id = @Id`);
+
+    if (tournament.recordset.length === 0) {
+      return res.status(404).json({ error: "Tournament not found" });
+    }
+
+    if (tournament.recordset[0].Status !== "open") {
+      return res.status(409).json({ error: "Voting is closed for this tournament" });
+    }
+
+    const option = await pool.request()
+      .input("OptionId", sql.Int, Number(optionId))
+      .input("TournamentId", sql.Int, tournamentId)
+      .query(`
+        SELECT Id FROM TournamentOptions
+        WHERE Id = @OptionId AND TournamentId = @TournamentId
+      `);
+
+    if (option.recordset.length === 0) {
+      return res.status(400).json({ error: "Option does not belong to this tournament" });
+    }
+
+    await pool.request()
+      .input("TournamentId", sql.Int, tournamentId)
+      .input("OptionId", sql.Int, Number(optionId))
+      .input("VoterEmail", sql.NVarChar(255), voterEmail)
+      .query(`
+        MERGE TournamentVotes AS target
+        USING (SELECT @TournamentId AS TournamentId, @VoterEmail AS VoterEmail) AS source
+          ON target.TournamentId = source.TournamentId
+          AND LOWER(target.VoterEmail) = source.VoterEmail
+        WHEN MATCHED THEN
+          UPDATE SET TournamentOptionId = @OptionId, CreatedAt = SYSUTCDATETIME()
+        WHEN NOT MATCHED THEN
+          INSERT (TournamentId, TournamentOptionId, VoterEmail)
+          VALUES (@TournamentId, @OptionId, @VoterEmail);
+      `);
+
+    res.json({ success: true, optionId: Number(optionId) });
+  } catch (error: any) {
+    console.error("Failed to record vote", error);
+    res.status(500).json({
+      error: "Failed to record vote",
+      details: error.message
+    });
+  }
+});
+
+// Withdraw the signed-in member's vote from a tournament.
+app.delete("/api/tournaments/:id/vote", async (req: any, res) => {
+  try {
+    const tournamentId = Number(req.params.id);
+    const voterEmail = (req.userEmail as string).toLowerCase();
+
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("TournamentId", sql.Int, tournamentId)
+      .input("VoterEmail", sql.NVarChar(255), voterEmail)
+      .query(`
+        DELETE FROM TournamentVotes
+        WHERE TournamentId = @TournamentId AND LOWER(VoterEmail) = @VoterEmail
+      `);
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Failed to remove vote", error);
+    res.status(500).json({
+      error: "Failed to remove vote",
+      details: error.message
+    });
+  }
+});
+
+
 app.use((_req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
@@ -1517,4 +1979,5 @@ app.use((_req, res) => {
 app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
   backfillMembersIntoAdminGroup();
+  ensureTournamentTables();
 });
