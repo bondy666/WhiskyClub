@@ -241,9 +241,12 @@ function AuthBar() {
   const containerStyle: React.CSSProperties = {
     marginBottom: "1.5rem",
     padding: "0.75rem 1rem",
-    background: "#f6f0e7",
-    borderRadius: "12px",
-    border: "1px solid #ddd",
+    background: "rgba(255, 250, 242, 0.7)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    borderRadius: "14px",
+    border: "1px solid rgba(123, 63, 0, 0.2)",
+    boxShadow: "0 6px 22px rgba(43, 24, 8, 0.12)",
     display: "flex",
     flexWrap: "wrap",
     alignItems: "center",
@@ -255,12 +258,13 @@ function AuthBar() {
   const linkButtonStyle: React.CSSProperties = {
     display: "inline-block",
     textDecoration: "none",
-    background: "#7b3f00",
+    background: "linear-gradient(135deg, #8a4a04 0%, #7b3f00 55%, #5f2f00 100%)",
     color: "#fff",
-    border: "1px solid #5f2f00",
+    border: "none",
     borderRadius: "10px",
-    padding: "0.5rem 0.9rem",
-    fontWeight: 600
+    padding: "0.5rem 0.95rem",
+    fontWeight: 600,
+    boxShadow: "0 4px 14px rgba(123, 63, 0, 0.3)"
   };
 
   if (auth.loading) {
@@ -322,36 +326,42 @@ const headingStyle = {
 
 const buttonStyle: React.CSSProperties = {
   padding: "0.5rem 1rem",
-  borderRadius: "8px",
+  borderRadius: "10px",
   cursor: "pointer",
-  fontWeight: 500
+  fontWeight: 600,
+  letterSpacing: "0.02em"
 };
 
-const primaryButtonStyle = {
-  background: "#7b3f00",
+const primaryButtonStyle: React.CSSProperties = {
+  background: "linear-gradient(135deg, #8a4a04 0%, #7b3f00 55%, #5f2f00 100%)",
   color: "white",
   border: "none",
-  borderRadius: "8px",
-  padding: "0.75rem 1rem",
-  cursor: "pointer"
+  borderRadius: "10px",
+  padding: "0.75rem 1.1rem",
+  cursor: "pointer",
+  fontWeight: 600,
+  letterSpacing: "0.02em",
+  boxShadow: "0 4px 14px rgba(123, 63, 0, 0.32)"
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  backgroundColor: "#f8f9fa",
-  color: "#212529",
-  border: "1px solid #ccc",
+  background: "linear-gradient(135deg, #ffffff 0%, #f4ede1 100%)",
+  color: "#3a2413",
+  border: "1px solid #cbb697",
   minWidth: "120px",
-  textAlign: "center"
+  textAlign: "center",
+  boxShadow: "0 2px 8px rgba(43, 24, 8, 0.08)"
 };
 
 const dangerButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  backgroundColor: "#dc3545",
-  color: "#f6f0e7",
-  border: "1px solid #dc3545",
+  background: "linear-gradient(135deg, #e4503f 0%, #dc3545 55%, #b52a3a 100%)",
+  color: "#fff5f3",
+  border: "none",
   minWidth: "120px",
-  textAlign: "center"
+  textAlign: "center",
+  boxShadow: "0 4px 14px rgba(176, 35, 47, 0.3)"
 };
 
 function formatDate(date: string | Date) {
@@ -3780,21 +3790,38 @@ function AppShell() {
 
   return (
     <main
+      className="app-shell"
       style={{
-        padding: "1rem",
-        backgroundColor: "#e4d4bd",
+        padding: "1.25rem 1.25rem 2.5rem",
+        background:
+          "linear-gradient(180deg, #f5ebd9 0%, #e9dac3 55%, #ddc9ac 100%)",
         color: "#2b2118",
         minHeight: "100vh",
         fontFamily: "'Cormorant Garamond', serif",
         maxWidth: "480px",
-        margin: "0 auto"
+        margin: "0 auto",
+        position: "relative",
+        boxShadow: "0 0 90px rgba(20, 12, 6, 0.55)",
+        borderInline: "1px solid rgba(123, 63, 0, 0.18)"
       }}
     >
-      
+      <div
+        style={{
+          position: "absolute",
+          insetInline: 0,
+          top: 0,
+          height: "5px",
+          background:
+            "linear-gradient(90deg, #7b3f00 0%, #c9893f 35%, #f0c27b 50%, #c9893f 65%, #7b3f00 100%)"
+        }}
+      />
+
 <div
   style={{
     textAlign: "center",
-    marginBottom: "1.5rem"
+    marginBottom: "1.5rem",
+    paddingBottom: "1.25rem",
+    borderBottom: "1px solid rgba(123, 63, 0, 0.18)"
   }}
 >
   <img
@@ -3803,17 +3830,24 @@ function AppShell() {
     style={{
       width: "120px",
       height: "120px",
-      marginBottom: "0.5rem"
+      marginBottom: "0.5rem",
+      filter: "drop-shadow(0 6px 14px rgba(43, 24, 8, 0.35))"
     }}
   />
 
   <h1
     style={{
       fontFamily: "'Cormorant Garamond', serif",
-      fontSize: "2.5rem",
+      fontSize: "2.6rem",
       fontWeight: 700,
-      color: "#4a2c17",
-      margin: 0
+      margin: 0,
+      lineHeight: 1.05,
+      background:
+        "linear-gradient(135deg, #7b3f00 0%, #b5651d 48%, #4a2c17 100%)",
+      WebkitBackgroundClip: "text",
+      backgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+      color: "transparent"
     }}
   >
     Ealing Whisky Guild
@@ -3821,9 +3855,12 @@ function AppShell() {
 
   <p
     style={{
-      marginTop: "0.25rem",
-      color: "#6b4c35",
-      fontStyle: "italic"
+      marginTop: "0.35rem",
+      color: "#8a6b4e",
+      fontStyle: "italic",
+      letterSpacing: "0.18em",
+      textTransform: "uppercase",
+      fontSize: "0.8rem"
     }}
   >
     Est. 2026
@@ -3835,10 +3872,12 @@ function AppShell() {
         style={{
           marginBottom: "2rem",
           padding: "1rem",
-          background: "#f6f0e7",
-          borderRadius: "12px",
-          border: "1px solid #ddd",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.08)"
+          background: "rgba(255, 250, 242, 0.7)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          borderRadius: "14px",
+          border: "1px solid rgba(123, 63, 0, 0.2)",
+          boxShadow: "0 6px 22px rgba(43, 24, 8, 0.14)"
         }}
       >
         <label
