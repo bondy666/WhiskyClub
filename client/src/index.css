@@ -116,30 +116,32 @@ select,
 textarea,
 form label,
 form button {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   line-height: 1.4;
 }
 
 input,
 select,
 textarea {
-  padding: 0.85rem 0.95rem;
+  padding: 0.65rem 0.75rem;
   box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
 }
 
-/* Bump sizes further on phones */
+/* Bump sizes a touch on phones, but keep fields within the screen width */
 @media (max-width: 1024px) {
   input,
   select,
   textarea,
   form label,
   form button {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
   }
 
   input,
   select,
   textarea {
-    padding: 1rem 1.05rem;
+    padding: 0.7rem 0.8rem;
   }
 }
