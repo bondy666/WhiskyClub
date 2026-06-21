@@ -280,6 +280,51 @@ async function ensureTournamentTables(): Promise<void> {
   }
 }
 
+// Creates the ActivityLog table that backs the in-app notification centre.
+// Each row is a short, human-readable record of something that changed (a new
+// photo, whisky, session, etc.). Idempotent, so it is safe to call on boot.
+async function ensureActivityTable(): Promise<void> {
+  try {
+    const pool = await poolPromise;
+
+    await pool.request().query(`
+      IF OBJECT_ID('dbo.ActivityLog', 'U') IS NULL
+      BEGIN
+        CREATE TABLE ActivityLog (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          Type NVARCHAR(50) NOT NULL,
+          Message NVARCHAR(300) NOT NULL,
+          CreatedAt DATETIME2 NOT NULL
+            CONSTRAINT DF_ActivityLog_CreatedAt DEFAULT SYSUTCDATETIME()
+        );
+      END;
+    `);
+
+    console.log("Ensured activity table exists");
+  } catch (error: any) {
+    console.error("Failed to ensure activity table", error);
+  }
+}
+
+// Records a single activity entry for the notification feed. Best-effort: any
+// failure is logged but never thrown, so notification logging can never break
+// the primary request that triggered it.
+async function logActivity(type: string, message: string): Promise<void> {
+  try {
+    const pool = await poolPromise;
+
+    await pool.request()
+      .input("Type", sql.NVarChar(50), type)
+      .input("Message", sql.NVarChar(300), message)
+      .query(`
+        INSERT INTO ActivityLog (Type, Message)
+        VALUES (@Type, @Message)
+      `);
+  } catch (error: any) {
+    console.error("Failed to log activity", error);
+  }
+}
+
 // Enforce sign-in + allow-list on every mutating API request, regardless of the
 // order in which individual routes are registered below. Safe (read-only)
 // methods are left open so the public can still view sessions, whiskies, etc.
@@ -367,7 +412,19 @@ app.post("/api/tasting-entries", async (req, res) => {
       )
   `);
 
-    res.status(201).json(result.recordset[0]);
+    const insertedEntry = result.recordset[0];
+
+    try {
+      const whiskyRow = await pool.request()
+        .input("WhiskyId", sql.Int, whiskyId)
+        .query(`SELECT Name FROM Whiskies WHERE Id = @WhiskyId`);
+      const whiskyName = whiskyRow.recordset[0]?.Name ?? "a whisky";
+      await logActivity("entry", `📝 New tasting notes added for ${whiskyName}`);
+    } catch (activityError) {
+      console.error("Failed to log tasting-entry activity", activityError);
+    }
+
+    res.status(201).json(insertedEntry);
   } catch (error: any) {
     console.error("Failed to create tasting entry", error);
     res.status(500).json({
@@ -590,6 +647,8 @@ app.post("/api/sessions", async (req, res) => {
         VALUES (@Name, @SessionDate, @Theme, @Status)
       `);
 
+    await logActivity("session", `📅 New tasting session created: ${name}`);
+
     res.status(201).json(result.recordset[0]);
   } catch (error: any) {
     console.error("Failed to create session", error);
@@ -639,6 +698,8 @@ app.post("/api/whiskies", async (req, res) => {
         OUTPUT INSERTED.*
         VALUES (@Name, @Distillery, @Region, @AgeYears, @ABV, @Price, @ImageUrl)
       `);
+
+    await logActivity("whisky", `🥃 New whisky added: ${name}`);
 
     res.status(201).json(result.recordset[0]);
   } catch (error) {
@@ -1030,6 +1091,8 @@ app.post("/api/members", async (req, res) => {
 
     // Every club member is automatically part of the admin group.
     await ensureMemberInAdminGroup(pool, result.recordset[0].Email);
+
+    await logActivity("member", `👤 New member added: ${name}`);
 
     res.status(201).json(result.recordset[0]);
   } catch (error: any) {
@@ -1564,6 +1627,16 @@ app.post("/api/sessions/:id/photos", async (req, res) => {
         VALUES (@SessionId, @ImageUrl, @Caption)
       `);
 
+    try {
+      const sessionRow = await pool.request()
+        .input("SessionId", sql.Int, sessionId)
+        .query(`SELECT Name FROM TastingSessions WHERE Id = @SessionId`);
+      const sessionName = sessionRow.recordset[0]?.Name ?? "a session";
+      await logActivity("photo", `📸 New photo added to ${sessionName}`);
+    } catch (activityError) {
+      console.error("Failed to log photo activity", activityError);
+    }
+
     res.status(201).json(result.recordset[0]);
   } catch (error: any) {
     res.status(500).json({
@@ -1594,6 +1667,30 @@ app.delete("/api/session-photos/:id", async (req, res) => {
   } catch (error: any) {
     res.status(500).json({
       error: "Failed to delete session photo",
+      details: error.message
+    });
+  }
+});
+
+
+// Public feed of recent activity that powers the in-app notification centre.
+// Returns the most recent entries, newest first. Open to all viewers (GET), so
+// everyone sees notifications regardless of sign-in state.
+app.get("/api/activity", async (_req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request().query(`
+      SELECT TOP 50 Id, Type, Message, CreatedAt
+      FROM ActivityLog
+      ORDER BY Id DESC
+    `);
+
+    res.json(result.recordset);
+  } catch (error: any) {
+    console.error("Failed to load activity", error);
+    res.status(500).json({
+      error: "Failed to load activity",
       details: error.message
     });
   }
@@ -2016,6 +2113,16 @@ app.post("/api/tournaments/:id/pick-winner", async (req: any, res) => {
         UPDATE Tournaments SET Status = 'closed' WHERE Id = @TournamentId;
       `);
 
+    try {
+      const titleRow = await pool.request()
+        .input("Id", sql.Int, tournamentId)
+        .query(`SELECT Title FROM Tournaments WHERE Id = @Id`);
+      const title = titleRow.recordset[0]?.Title ?? "a tasting session";
+      await logActivity("session-finalised", `🏆 Date finalised for ${title}`);
+    } catch (activityError) {
+      console.error("Failed to log finalise activity", activityError);
+    }
+
     res.json({ success: true, winnerOptionId: winnerId });
   } catch (error: any) {
     console.error("Failed to pick winner", error);
@@ -2035,4 +2142,5 @@ app.listen(port, () => {
   console.log(`Whisky Club API running on port ${port}`);
   backfillMembersIntoAdminGroup();
   ensureTournamentTables();
+  ensureActivityTable();
 });

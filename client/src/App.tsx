@@ -3757,6 +3757,241 @@ function TournamentsPage() {
   );
 }
 
+type ActivityItem = {
+  Id: number;
+  Type: string;
+  Message: string;
+  CreatedAt: string;
+};
+
+const LAST_SEEN_ACTIVITY_KEY = "ewg:lastSeenActivityId";
+const ACTIVITY_POLL_MS = 30000;
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+// In-app notification centre. Polls the public activity feed, shows a bell with
+// an unread badge plus a dropdown history, and pops short-lived toasts when new
+// activity arrives while the app is open.
+function NotificationCenter() {
+  const [items, setItems] = useState<ActivityItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const [toasts, setToasts] = useState<ActivityItem[]>([]);
+  const [lastSeenId, setLastSeenId] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(LAST_SEEN_ACTIVITY_KEY));
+    return Number.isFinite(stored) ? stored : 0;
+  });
+
+  // Highest activity id we have already processed for toasts. Seeded on the
+  // first successful fetch so we never toast the backlog of historical entries.
+  const maxToastedIdRef = useRef<number | null>(null);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.Id !== id));
+  }, []);
+
+  const fetchActivity = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/activity`);
+      if (!res.ok) return;
+      const data: ActivityItem[] = await res.json();
+      setItems(data);
+
+      const maxId = data.reduce((m, it) => Math.max(m, it.Id), 0);
+
+      if (maxToastedIdRef.current === null) {
+        // First load: establish a baseline without toasting existing items.
+        maxToastedIdRef.current = maxId;
+        return;
+      }
+
+      const fresh = data
+        .filter(it => it.Id > (maxToastedIdRef.current ?? 0))
+        .sort((a, b) => a.Id - b.Id);
+
+      if (fresh.length > 0) {
+        maxToastedIdRef.current = maxId;
+        setToasts(prev => [...prev, ...fresh]);
+        fresh.forEach(it => {
+          window.setTimeout(() => dismissToast(it.Id), 6000);
+        });
+      }
+    } catch {
+      // Network hiccups are ignored; the next poll will retry.
+    }
+  }, [dismissToast]);
+
+  useEffect(() => {
+    void fetchActivity();
+    const interval = window.setInterval(() => void fetchActivity(), ACTIVITY_POLL_MS);
+    return () => window.clearInterval(interval);
+  }, [fetchActivity]);
+
+  const maxId = items.reduce((m, it) => Math.max(m, it.Id), 0);
+  const unreadCount = items.filter(it => it.Id > lastSeenId).length;
+
+  function toggleOpen() {
+    setOpen(prev => {
+      const next = !prev;
+      if (next && maxId > lastSeenId) {
+        setLastSeenId(maxId);
+        localStorage.setItem(LAST_SEEN_ACTIVITY_KEY, String(maxId));
+      }
+      return next;
+    });
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.75rem" }}>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={toggleOpen}
+            aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+            style={{
+              position: "relative",
+              background: "rgba(255, 250, 242, 0.85)",
+              border: "1px solid rgba(123, 63, 0, 0.25)",
+              borderRadius: "10px",
+              padding: "0.45rem 0.7rem",
+              cursor: "pointer",
+              fontSize: "1.25rem",
+              lineHeight: 1,
+              boxShadow: "0 4px 14px rgba(43, 24, 8, 0.12)"
+            }}
+          >
+            🔔
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "-6px",
+                  right: "-6px",
+                  background: "#b5651d",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  minWidth: "18px",
+                  height: "18px",
+                  padding: "0 4px",
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 0 0 2px #f5ebd9"
+                }}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {open && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "calc(100% + 0.5rem)",
+                width: "300px",
+                maxHeight: "360px",
+                overflowY: "auto",
+                background: "#fffaf2",
+                border: "1px solid rgba(123, 63, 0, 0.25)",
+                borderRadius: "12px",
+                boxShadow: "0 12px 30px rgba(43, 24, 8, 0.28)",
+                zIndex: 50
+              }}
+            >
+              <div
+                style={{
+                  padding: "0.6rem 0.85rem",
+                  borderBottom: "1px solid rgba(123, 63, 0, 0.15)",
+                  fontWeight: 700,
+                  color: "#6b4c35",
+                  fontSize: "0.95rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em"
+                }}
+              >
+                Notifications
+              </div>
+              {items.length === 0 ? (
+                <div style={{ padding: "1rem 0.85rem", color: "#6b4c35" }}>
+                  Nothing here yet.
+                </div>
+              ) : (
+                items.map(it => (
+                  <div
+                    key={it.Id}
+                    style={{
+                      padding: "0.6rem 0.85rem",
+                      borderBottom: "1px solid rgba(123, 63, 0, 0.08)",
+                      color: "#2b2118"
+                    }}
+                  >
+                    <div style={{ fontSize: "0.98rem" }}>{it.Message}</div>
+                    <div style={{ fontSize: "0.78rem", color: "#8a7355", marginTop: "0.15rem" }}>
+                      {formatRelativeTime(it.CreatedAt)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div
+        aria-live="polite"
+        style={{
+          position: "fixed",
+          top: "1rem",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(440px, calc(100vw - 2rem))",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+          zIndex: 1000,
+          pointerEvents: "none"
+        }}
+      >
+        {toasts.map(t => (
+          <div
+            key={t.Id}
+            onClick={() => dismissToast(t.Id)}
+            style={{
+              pointerEvents: "auto",
+              cursor: "pointer",
+              background: "linear-gradient(150deg, #5f2f00 0%, #7b3f00 60%, #b5651d 100%)",
+              color: "#f6e8cd",
+              padding: "0.7rem 0.9rem",
+              borderRadius: "12px",
+              border: "1px solid rgba(240, 194, 123, 0.45)",
+              boxShadow: "0 10px 26px rgba(31, 18, 8, 0.4)",
+              fontSize: "0.98rem"
+            }}
+          >
+            {t.Message}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function App() {
   const auth = useProvideAuth();
   return (
@@ -3885,6 +4120,7 @@ function AppShell() {
   </p>
 </div>
       <AuthBar />
+      <NotificationCenter />
       <nav
         aria-label="Primary"
         style={{
