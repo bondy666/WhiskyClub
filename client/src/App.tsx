@@ -3128,7 +3128,7 @@ function TournamentsPage() {
   const loadTournaments = useCallback(async () => {
     const res = await fetch(`${API_URL}/api/tournaments`);
     if (!res.ok) {
-      alert(`Failed to load tournaments: ${res.status}`);
+      alert(`Failed to load tasting sessions: ${res.status}`);
       return;
     }
     const data = await res.json();
@@ -3138,7 +3138,7 @@ function TournamentsPage() {
   const loadDetail = useCallback(async (id: number) => {
     const res = await fetch(`${API_URL}/api/tournaments/${id}`);
     if (!res.ok) {
-      alert(`Failed to load tournament: ${res.status}`);
+      alert(`Failed to load tasting session: ${res.status}`);
       return;
     }
     const data: TournamentDetail = await res.json();
@@ -3178,7 +3178,7 @@ function TournamentsPage() {
     e.preventDefault();
 
     if (!title.trim()) {
-      alert("Please give the tournament a name.");
+      alert("Please give the tasting session a name.");
       return;
     }
     if (selectedDates.length === 0) {
@@ -3199,13 +3199,13 @@ function TournamentsPage() {
 
     if (!res.ok) {
       const errorText = await res.text();
-      alert(`Failed to create tournament: ${res.status} ${errorText}`);
+      alert(`Failed to create tasting session: ${res.status} ${errorText}`);
       return;
     }
 
     const created = await res.json();
     resetCreateForm();
-    setMessage("✅ Tournament created");
+    setMessage("✅ Tasting session created");
     await loadTournaments();
     if (created?.Id) {
       setExpandedId(created.Id);
@@ -3302,7 +3302,7 @@ function TournamentsPage() {
     });
 
     if (!res.ok) {
-      alert(`Failed to update tournament: ${res.status}`);
+      alert(`Failed to update tasting session: ${res.status}`);
       return;
     }
 
@@ -3335,7 +3335,7 @@ function TournamentsPage() {
   async function deleteTournament(tournamentId: number) {
     if (
       !window.confirm(
-        "Delete this tournament along with all of its dates and votes?"
+        "Delete this tasting session along with all of its dates and votes?"
       )
     ) {
       return;
@@ -3346,7 +3346,7 @@ function TournamentsPage() {
     });
 
     if (!res.ok) {
-      alert(`Failed to delete tournament: ${res.status}`);
+      alert(`Failed to delete tasting session: ${res.status}`);
       return;
     }
 
@@ -3356,10 +3356,10 @@ function TournamentsPage() {
 
   return (
     <>
-      <h1 style={headingStyle}>🏆 New Tournament</h1>
+      <h1 style={headingStyle}>🏆 New Tasting Session</h1>
       <p style={{ color: "#6b4c35", marginTop: "-0.5rem" }}>
-        Propose candidate dates for the next tournament, vote for the ones that
-        suit you, then lock in the winning date. Tallies update live.
+        Propose candidate dates for the next tasting session, vote for the ones
+        that suit you, then lock in the winning date. Tallies update live.
       </p>
 
       {!canEdit && (
@@ -3373,7 +3373,7 @@ function TournamentsPage() {
           }}
         >
           Sign in with an approved Microsoft or Google account to propose
-          tournaments and vote.
+          tasting sessions and vote.
         </div>
       )}
 
@@ -3399,7 +3399,7 @@ function TournamentsPage() {
               style={primaryButtonStyle}
               onClick={() => setShowCreate(true)}
             >
-              + New tournament
+              + New tasting session
             </button>
           ) : (
             <form
@@ -3413,9 +3413,9 @@ function TournamentsPage() {
                 padding: "1rem"
               }}
             >
-              <strong style={{ color: "#4a2c17" }}>New tournament</strong>
+              <strong style={{ color: "#4a2c17" }}>New tasting session</strong>
               <input
-                placeholder="Tournament name (e.g. Summer Whisky Showdown)"
+                placeholder="Tasting session name (e.g. Summer Whisky Showdown)"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 required
@@ -3472,7 +3472,7 @@ function TournamentsPage() {
 
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button type="submit" style={primaryButtonStyle}>
-                  Create tournament
+                  Create tasting session
                 </button>
                 <button
                   type="button"
@@ -3489,7 +3489,7 @@ function TournamentsPage() {
 
       {tournaments.length === 0 && (
         <p style={{ color: "#6b4c35" }}>
-          No tournaments yet. {canEdit ? "Propose the first one above." : ""}
+          No tasting sessions yet. {canEdit ? "Propose the first one above." : ""}
         </p>
       )}
 
@@ -3744,7 +3744,7 @@ function TournamentsPage() {
                       style={dangerButtonStyle}
                       onClick={() => deleteTournament(t.Id)}
                     >
-                      Delete tournament
+                      Delete tasting session
                     </button>
                   </div>
                 )}
@@ -3777,7 +3777,7 @@ function AppShell() {
     { to: "/members", label: "Members" },
     { to: "/leaderboard", label: "Whisky Leaderboard" },
     { to: "/members/leaderboard", label: "Member Leaderboard" },
-    { to: "/tournaments", label: "New Tournament" },
+    { to: "/tournaments", label: "New Tasting Session" },
     { to: "/admin", label: "Admin" }
   ];
 
